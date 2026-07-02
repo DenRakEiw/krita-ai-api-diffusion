@@ -46,10 +46,10 @@ TR = {
         "btn_ref_choose": "Choose reference image ...", "btn_ref_clear": "Remove",
         "ref_none": "No reference image", "ref_set": "Reference: {name} ({w}x{h})",
         "btn_generate": "New image (text -> image)",
-        "btn_edit": "Context Inpaint (FLUX.2)",
-        "btn_fill": "Mask Inpaint (FLUX.1 Fill)",
+        "btn_edit": "Context Inpaint",
+        "btn_fill": "Mask Inpaint (FLUX only)",
         "status_ready": "Ready", "status_generating": "Generating image ...",
-        "status_edit": "Context Inpaint (FLUX.2) ...",
+        "status_edit": "Context Inpaint ...",
         "status_fill": "Mask Inpaint (FLUX.1 Fill) ...",
         "status_waiting": "Waiting for result ...", "status_prefix": "Status:",
         "done_generate": "Done - new image inserted.",
@@ -82,10 +82,10 @@ TR = {
         "btn_ref_choose": "Referenzbild wählen ...", "btn_ref_clear": "Entfernen",
         "ref_none": "Kein Referenzbild", "ref_set": "Referenz: {name} ({w}x{h})",
         "btn_generate": "Neues Bild (Text -> Bild)",
-        "btn_edit": "Kontext-Inpaint (FLUX.2)",
-        "btn_fill": "Masken-Inpaint (FLUX.1 Fill)",
+        "btn_edit": "Kontext-Inpaint",
+        "btn_fill": "Masken-Inpaint (nur FLUX)",
         "status_ready": "Bereit", "status_generating": "Generiere Bild ...",
-        "status_edit": "Kontext-Inpaint (FLUX.2) ...",
+        "status_edit": "Kontext-Inpaint ...",
         "status_fill": "Masken-Inpaint (FLUX.1 Fill) ...",
         "status_waiting": "Warte auf Ergebnis ...", "status_prefix": "Status:",
         "done_generate": "Fertig - neues Bild eingefügt.",
@@ -117,10 +117,10 @@ TR = {
         "btn_ref_choose": "选择参考图 ...", "btn_ref_clear": "移除",
         "ref_none": "无参考图", "ref_set": "参考图：{name}（{w}x{h}）",
         "btn_generate": "新建图像（文本 → 图像）",
-        "btn_edit": "上下文修复（FLUX.2）",
-        "btn_fill": "蒙版修复（FLUX.1 Fill）",
+        "btn_edit": "上下文修复",
+        "btn_fill": "蒙版修复（仅 FLUX）",
         "status_ready": "就绪", "status_generating": "正在生成图像 ...",
-        "status_edit": "上下文修复（FLUX.2）...",
+        "status_edit": "上下文修复 ...",
         "status_fill": "蒙版修复（FLUX.1 Fill）...",
         "status_waiting": "等待结果 ...", "status_prefix": "状态：",
         "done_generate": "完成 - 已插入新图像。",
@@ -152,10 +152,10 @@ TR = {
         "btn_ref_choose": "เลือกภาพอ้างอิง ...", "btn_ref_clear": "ลบออก",
         "ref_none": "ไม่มีภาพอ้างอิง", "ref_set": "อ้างอิง: {name} ({w}x{h})",
         "btn_generate": "ภาพใหม่ (ข้อความ → ภาพ)",
-        "btn_edit": "อินเพนต์ตามบริบท (FLUX.2)",
-        "btn_fill": "อินเพนต์ด้วยมาสก์ (FLUX.1 Fill)",
+        "btn_edit": "อินเพนต์ตามบริบท",
+        "btn_fill": "อินเพนต์ด้วยมาสก์ (เฉพาะ FLUX)",
         "status_ready": "พร้อม", "status_generating": "กำลังสร้างภาพ ...",
-        "status_edit": "อินเพนต์ตามบริบท (FLUX.2) ...",
+        "status_edit": "อินเพนต์ตามบริบท ...",
         "status_fill": "อินเพนต์ด้วยมาสก์ (FLUX.1 Fill) ...",
         "status_waiting": "กำลังรอผลลัพธ์ ...", "status_prefix": "สถานะ:",
         "done_generate": "เสร็จสิ้น - แทรกภาพใหม่แล้ว",
@@ -303,6 +303,7 @@ class AIDiffusionDocker(DockWidget):
         self.lbl_model = QLabel()
         self.model_cb = QComboBox()
         self.model_cb.addItems([m["label"] for m in MODELS])
+        self.model_cb.currentIndexChanged.connect(self._on_model_changed)
         self.lbl_prompt = QLabel()
         self.prompt_ed = QPlainTextEdit()
         self.status_lbl = QLabel()
@@ -370,6 +371,7 @@ class AIDiffusionDocker(DockWidget):
         self.setWidget(main_w)
         self.load_k()
         self.apply_language()
+        self._on_model_changed()
         self.status_lbl.setText(self.tr("status_ready"))
 
     # --- i18n ---------------------------------------------------------------
@@ -524,15 +526,21 @@ class AIDiffusionDocker(DockWidget):
             return
 
         crop = self._selection_crop(doc)
-        if crop is None:
-            return self._warn("warn_no_selection")
-        x, y, w, h = crop
+        # Kontext-Inpaint funktioniert auch ohne Auswahl -> ganzes Bild als Kontext.
+        # Masken-Inpaint braucht zwingend eine Auswahl.
+        full = crop is None
+        if full:
+            if mode == "fill":
+                return self._warn("warn_no_selection")
+            x, y, w, h = 0, 0, doc.width(), doc.height()
+        else:
+            x, y, w, h = crop
         tw, th = self._scaled_target(w, h)
 
         img = self._read_region(doc, x, y, w, h).scaled(
             tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         img_b64 = self.qimage_to_b64(img)
-        crop_info = {"x": x, "y": y, "w": w, "h": h}
+        crop_info = {"x": x, "y": y, "w": w, "h": h, "full": full}
 
         if mode == "edit":
             if not prompt:
@@ -571,8 +579,16 @@ class AIDiffusionDocker(DockWidget):
         self.worker.start()
 
     def _set_busy(self, busy):
-        for b in (self.btn_gen, self.btn_edit, self.btn_fill):
-            b.setEnabled(not busy)
+        self.btn_gen.setEnabled(not busy)
+        self.btn_edit.setEnabled(not busy)
+        # Masken-Inpaint nur für FLUX (BFL); Nano Banana kann das nicht
+        fill_ok = MODELS[self.model_cb.currentIndex()]["provider"] == "bfl"
+        self.btn_fill.setEnabled(not busy and fill_ok)
+
+    def _on_model_changed(self, *_):
+        if self.worker and self.worker.isRunning():
+            return
+        self._set_busy(False)
 
     # --- Ergebnis -----------------------------------------------------------
     def handle_err(self, msg):
@@ -603,6 +619,15 @@ class AIDiffusionDocker(DockWidget):
 
         x, y, w, h = crop["x"], crop["y"], crop["w"], crop["h"]
         result = result.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+        # Voll-Bild-Edit (keine Auswahl): Ergebnis als komplette Ebene setzen
+        if crop.get("full"):
+            layer = doc.createNode("AI Edit", "paintLayer")
+            doc.rootNode().addChildNode(layer, None)
+            layer.setPixelData(result.bits().asstring(w * h * 4), x, y, w, h)
+            doc.refreshProjection()
+            self.status_lbl.setText(self.tr("done_inpaint"))
+            return
 
         alpha = self._read_alpha(doc, x, y, w, h)
         if self.feather_cb.isChecked():

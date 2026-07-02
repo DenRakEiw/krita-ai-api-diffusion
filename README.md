@@ -4,22 +4,25 @@
 
 
 A Krita plugin that brings the **FLUX** models from
-[Black Forest Labs (BFL)](https://bfl.ai) directly into Krita — for
+[Black Forest Labs (BFL)](https://bfl.ai) **and Google's Nano Banana 2**
+([Gemini image models](https://ai.google.dev)) directly into Krita — for
 text-to-image, context-based inpainting and mask-based inpainting, with an
 optional reference image. The interface is **multilingual**
 (English / Deutsch / 中文 / ไทย).
 
 ## Features
 
-- **New image (text → image)** — generate an image from a prompt (FLUX.2).
-- **Context Inpaint (FLUX.2)** — edits the current selection context-based via
-  `input_image` (no mask needed). Great for instructions like
-  “remove the person” or “replace the sky”.
+- **Two providers side by side** — pick a **BFL FLUX** model or a
+  **Google Nano Banana 2** model from the same dropdown; the plugin routes to
+  the right API automatically.
+- **New image (text → image)** — generate an image from a prompt.
+- **Context Inpaint** — edits the current selection context-based
+  (FLUX.2 `input_image` or Gemini image editing, no mask needed). Great for
+  instructions like “remove the person” or “replace the sky”.
 - **Mask Inpaint (FLUX.1 Fill)** — precise filling exactly inside the selection
-  via `image` + `mask` (`flux-pro-1.0-fill`).
+  via `image` + `mask` (`flux-pro-1.0-fill`). FLUX only.
 - **Reference image (optional)** — an additional image used as a template, e.g.
-  a specific pair of sunglasses that a selected cat should wear. Sent as
-  `input_image_2` for context inpaint and as `input_image` for generation.
+  a specific pair of sunglasses that a selected cat should wear.
 - **Multilingual UI** — switch language at runtime under *Options*.
 - Adaptive crop with context padding, feathered mask edges (no visible seams),
   correct color handling and readable error messages.
@@ -27,8 +30,11 @@ optional reference image. The interface is **multilingual**
 ## Requirements
 
 - **Krita 5.x** (includes Python/PyQt5 in the official builds).
-- A **BFL API key** from <https://api.bfl.ai> (the BFL dashboard).
-- Credits on your BFL account (the FLUX models are paid).
+- For FLUX: a **BFL API key** from <https://api.bfl.ai> (the BFL dashboard).
+- For Nano Banana 2: a **Google AI Studio API key** from
+  <https://aistudio.google.com/apikey>.
+- You only need the key(s) for the provider(s) you actually use. Both are paid
+  / metered services.
 
 ## Installation
 
