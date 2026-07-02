@@ -1,4 +1,4 @@
-import json, base64, time, urllib.request, urllib.error
+import json, base64, time, random, urllib.request, urllib.error
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QByteArray, QBuffer, QIODevice
 from PyQt5.QtGui import QImage, QPainter
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -25,6 +25,18 @@ MODELS = [
 FILL_ENDPOINT = "flux-pro-1.0-fill"
 API_BASE = "https://api.bfl.ai/v1/"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
+
+# Seitenverhältnis-Presets (~1 MP, Kanten Vielfache von 64) für "Neues Bild"
+ASPECT_PRESETS = [
+    ("Custom", None),
+    ("1:1", (1024, 1024)),
+    ("3:2", (1216, 832)),
+    ("2:3", (832, 1216)),
+    ("16:9", (1344, 768)),
+    ("9:16", (768, 1344)),
+    ("4:3", (1152, 896)),
+    ("3:4", (896, 1152)),
+]
 
 CONTEXT_PAD = 0.35   # Kontext-Rand um die Auswahl (Anteil der Auswahlgröße)
 MAX_EDGE = 1536      # Max. Kantenlänge, die zur API geschickt wird
@@ -57,6 +69,9 @@ TR = {
         "label_apikey": "API Key (BFL):", "btn_save": "Save", "saved": "Saved.",
         "label_width": "Width (new image):", "label_height": "Height (new image):",
         "feather": "Feather mask edge (soft transitions)", "label_language": "Language:",
+        "btn_cancel": "Cancel", "status_cancelled": "Cancelled.",
+        "label_aspect": "Aspect ratio (new image):", "label_seed": "Seed:",
+        "seed_random": "Random seed", "btn_dice": "New seed",
         "label_gkey": "Google AI Studio API Key:",
         "warn_no_gkey": "Please save a Google AI Studio API key under 'Options' first.",
         "warn_fill_flux_only": "Mask Inpaint requires a FLUX model. Nano Banana supports "
@@ -93,6 +108,9 @@ TR = {
         "label_apikey": "API Key (BFL):", "btn_save": "Speichern", "saved": "Gespeichert.",
         "label_width": "Breite (Neues Bild):", "label_height": "Höhe (Neues Bild):",
         "feather": "Maskenkante federn (weiche Übergänge)", "label_language": "Sprache:",
+        "btn_cancel": "Abbrechen", "status_cancelled": "Abgebrochen.",
+        "label_aspect": "Seitenverhältnis (Neues Bild):", "label_seed": "Seed:",
+        "seed_random": "Zufalls-Seed", "btn_dice": "Neuer Seed",
         "label_gkey": "Google AI Studio API Key:",
         "warn_no_gkey": "Bitte zuerst einen Google AI Studio API Key unter 'Optionen' speichern.",
         "warn_fill_flux_only": "Masken-Inpaint benötigt ein FLUX-Modell. Nano Banana kann "
@@ -128,6 +146,9 @@ TR = {
         "label_apikey": "API 密钥（BFL）：", "btn_save": "保存", "saved": "已保存。",
         "label_width": "宽度（新图像）：", "label_height": "高度（新图像）：",
         "feather": "羽化蒙版边缘（柔和过渡）", "label_language": "语言：",
+        "btn_cancel": "取消", "status_cancelled": "已取消。",
+        "label_aspect": "宽高比（新图像）：", "label_seed": "种子：",
+        "seed_random": "随机种子", "btn_dice": "新种子",
         "label_gkey": "Google AI Studio API 密钥：",
         "warn_no_gkey": "请先在 '选项' 中保存 Google AI Studio API 密钥。",
         "warn_fill_flux_only": "蒙版修复需要 FLUX 模型。Nano Banana 支持生成和上下文修复。",
@@ -163,6 +184,9 @@ TR = {
         "label_apikey": "คีย์ API (BFL):", "btn_save": "บันทึก", "saved": "บันทึกแล้ว",
         "label_width": "ความกว้าง (ภาพใหม่):", "label_height": "ความสูง (ภาพใหม่):",
         "feather": "ทำขอบมาสก์ให้นุ่ม (การเปลี่ยนผ่านนุ่มนวล)", "label_language": "ภาษา:",
+        "btn_cancel": "ยกเลิก", "status_cancelled": "ยกเลิกแล้ว",
+        "label_aspect": "อัตราส่วนภาพ (ภาพใหม่):", "label_seed": "ซีด:",
+        "seed_random": "ซีดสุ่ม", "btn_dice": "ซีดใหม่",
         "label_gkey": "คีย์ API ของ Google AI Studio:",
         "warn_no_gkey": "กรุณาบันทึกคีย์ API ของ Google AI Studio ใน 'ตัวเลือก' ก่อน",
         "warn_fill_flux_only": "อินเพนต์ด้วยมาสก์ต้องใช้โมเดล FLUX. Nano Banana รองรับ "
@@ -197,15 +221,22 @@ class APIWorker(QThread):
         self.status_wait = status_wait
         self.status_prefix = status_prefix
         self.provider = provider
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
 
     def run(self):
         try:
+            if self._cancel:
+                return
             if self.provider == "google":
                 self._run_google()
             else:
                 self._run_bfl()
         except Exception as e:
-            self.error.emit(str(e))
+            if not self._cancel:
+                self.error.emit(str(e))
 
     def _run_google(self):
         # Gemini generateContent: synchron, Bild als inline_data zurück
@@ -215,6 +246,8 @@ class APIWorker(QThread):
         for b64 in self.payload.get("images", []):
             parts.append({"inline_data": {"mime_type": "image/png", "data": b64}})
         body = {"contents": [{"parts": parts}]}
+        if self.payload.get("seed") is not None:
+            body["generationConfig"] = {"seed": int(self.payload["seed"])}
         data = json.dumps(body).encode()
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         try:
@@ -224,6 +257,8 @@ class APIWorker(QThread):
             detail = he.read().decode(errors="replace")
             raise Exception(f"HTTP {he.code} (Gemini {self.endpoint}): {detail}")
 
+        if self._cancel:
+            return
         cands = res.get("candidates") or []
         if not cands:
             fb = res.get("promptFeedback") or res.get("error") or res
@@ -259,7 +294,11 @@ class APIWorker(QThread):
 
             self.status.emit(self.status_wait)
             while True:
+                if self._cancel:
+                    return
                 time.sleep(1.5)
+                if self._cancel:
+                    return
                 p_req = urllib.request.Request(polling_url, headers=headers)
                 with urllib.request.urlopen(p_req, timeout=30) as p_resp:
                     res = json.loads(p_resp.read().decode())
@@ -267,8 +306,10 @@ class APIWorker(QThread):
                 if st == "Ready":
                     img_url = res.get("result", {}).get("sample")
                     with urllib.request.urlopen(img_url, timeout=120) as i_resp:
-                        self.finished.emit({"image_data": i_resp.read(),
-                                            "crop": self.crop_info})
+                        data_bytes = i_resp.read()
+                    if self._cancel:
+                        return
+                    self.finished.emit({"image_data": data_bytes, "crop": self.crop_info})
                     return
                 if st in ("Error", "Failed", "Content Moderated",
                           "Request Moderated", "Task not found"):
@@ -282,6 +323,8 @@ class AIDiffusionDocker(DockWidget):
     def __init__(self):
         super().__init__()
         self.worker = None
+        self.busy = False
+        self._threads = []   # hält abgebrochene, noch laufende Worker am Leben (Anti-GC)
         self.ref_b64 = None
         self.ref_name = None
         self.ref_w = self.ref_h = 0
@@ -324,13 +367,17 @@ class AIDiffusionDocker(DockWidget):
         self.btn_gen = QPushButton()
         self.btn_edit = QPushButton()
         self.btn_fill = QPushButton()
+        self.btn_cancel = QPushButton()
         self.btn_gen.clicked.connect(lambda: self._start("generate"))
         self.btn_edit.clicked.connect(lambda: self._start("edit"))
         self.btn_fill.clicked.connect(lambda: self._start("fill"))
+        self.btn_cancel.clicked.connect(self.cancel_req)
+        self.btn_cancel.setEnabled(False)
 
         for w in [self.lbl_model, self.model_cb, self.lbl_prompt, self.prompt_ed,
                   self.lbl_ref, ref_box, self.ref_lbl,
-                  self.btn_gen, self.btn_edit, self.btn_fill, self.status_lbl]:
+                  self.btn_gen, self.btn_edit, self.btn_fill, self.btn_cancel,
+                  self.status_lbl]:
             gen_l.addWidget(w)
         gen_l.addStretch()
 
@@ -349,22 +396,43 @@ class AIDiffusionDocker(DockWidget):
         self.btn_save = QPushButton()
         self.btn_save.clicked.connect(self.save_k)
 
+        self.aspect_cb = QComboBox()
+        self.aspect_cb.addItems([name for name, _ in ASPECT_PRESETS])
+        self.aspect_cb.currentIndexChanged.connect(self._on_aspect_changed)
         self.gen_w = QSpinBox(); self.gen_w.setRange(256, 4096); self.gen_w.setSingleStep(64); self.gen_w.setValue(1024)
         self.gen_h = QSpinBox(); self.gen_h.setRange(256, 4096); self.gen_h.setSingleStep(64); self.gen_h.setValue(1024)
         self.feather_cb = QCheckBox()
         self.feather_cb.setChecked(True)
 
+        # Seed: Zufall (Checkbox) + fester Wert + Würfel-Button
+        self.seed_random = QCheckBox()
+        self.seed_random.setChecked(True)
+        self.seed_val = QSpinBox(); self.seed_val.setRange(0, 2147483647)
+        self.seed_val.setEnabled(False)
+        self.btn_dice = QPushButton()
+        self.seed_random.toggled.connect(lambda on: self.seed_val.setEnabled(not on))
+        self.btn_dice.clicked.connect(self._roll_seed)
+        seed_row = QHBoxLayout()
+        seed_row.addWidget(self.seed_random)
+        seed_row.addWidget(self.seed_val, 1)
+        seed_row.addWidget(self.btn_dice)
+        seed_box = QWidget(); seed_box.setLayout(seed_row)
+
         self.lbl_lang = QLabel()
         self.lbl_apikey = QLabel()
         self.lbl_gkey = QLabel()
+        self.lbl_aspect = QLabel()
         self.lbl_width = QLabel()
         self.lbl_height = QLabel()
+        self.lbl_seed = QLabel()
         opt_l.addRow(self.lbl_lang, self.lang_cb)
         opt_l.addRow(self.lbl_apikey, self.f_key)
         opt_l.addRow(self.lbl_gkey, self.g_key)
         opt_l.addRow(self.btn_save)
+        opt_l.addRow(self.lbl_aspect, self.aspect_cb)
         opt_l.addRow(self.lbl_width, self.gen_w)
         opt_l.addRow(self.lbl_height, self.gen_h)
+        opt_l.addRow(self.lbl_seed, seed_box)
         opt_l.addRow(self.feather_cb)
 
         layout.addWidget(self.tabs)
@@ -397,12 +465,17 @@ class AIDiffusionDocker(DockWidget):
         self.btn_gen.setText(self.tr("btn_generate"))
         self.btn_edit.setText(self.tr("btn_edit"))
         self.btn_fill.setText(self.tr("btn_fill"))
+        self.btn_cancel.setText(self.tr("btn_cancel"))
         self.lbl_lang.setText(self.tr("label_language"))
         self.lbl_apikey.setText(self.tr("label_apikey"))
         self.lbl_gkey.setText(self.tr("label_gkey"))
         self.btn_save.setText(self.tr("btn_save"))
+        self.lbl_aspect.setText(self.tr("label_aspect"))
         self.lbl_width.setText(self.tr("label_width"))
         self.lbl_height.setText(self.tr("label_height"))
+        self.lbl_seed.setText(self.tr("label_seed"))
+        self.seed_random.setText(self.tr("seed_random"))
+        self.btn_dice.setText(self.tr("btn_dice"))
         self.feather_cb.setText(self.tr("feather"))
 
     def _update_ref_label(self):
@@ -411,6 +484,31 @@ class AIDiffusionDocker(DockWidget):
                                          w=self.ref_w, h=self.ref_h))
         else:
             self.ref_lbl.setText(self.tr("ref_none"))
+
+    def _on_aspect_changed(self, idx):
+        dims = ASPECT_PRESETS[idx][1]
+        if dims:
+            self.gen_w.setValue(dims[0])
+            self.gen_h.setValue(dims[1])
+
+    def _roll_seed(self):
+        self.seed_random.setChecked(False)
+        self.seed_val.setValue(random.randint(0, 2147483647))
+
+    def _current_seed(self):
+        """Liefert den zu verwendenden Seed und zeigt ihn an (auch bei Zufall)."""
+        if self.seed_random.isChecked():
+            s = random.randint(0, 2147483647)
+            self.seed_val.setValue(s)  # sichtbar machen -> kann gelockt werden
+            return s
+        return self.seed_val.value()
+
+    def cancel_req(self):
+        if self.busy and self.worker:
+            self.worker.cancel()
+        self.busy = False
+        self._set_busy(False)
+        self.status_lbl.setText(self.tr("status_cancelled"))
 
     # --- Settings -----------------------------------------------------------
     def save_k(self):
@@ -494,7 +592,7 @@ class AIDiffusionDocker(DockWidget):
         doc = Krita.instance().activeDocument()
         if not doc:
             return self._warn("warn_no_doc")
-        if self.worker and self.worker.isRunning():
+        if self.busy:
             return self._warn("warn_running")
 
         sel = MODELS[self.model_cb.currentIndex()]
@@ -508,18 +606,20 @@ class AIDiffusionDocker(DockWidget):
         elif not self.f_key.text().strip():
             return self._warn("warn_no_key")
 
+        seed = self._current_seed()
+
         if mode == "generate":
             if not prompt:
                 return self._warn("warn_no_prompt")
             if provider == "google":
                 imgs = [self.ref_b64] if self.ref_b64 else []
-                self._launch(model_id, {"prompt": prompt, "images": imgs},
+                self._launch(model_id, {"prompt": prompt, "images": imgs, "seed": seed},
                              None, "status_generating", provider)
             else:
                 payload = {"prompt": prompt,
                            "width": self._round32(self.gen_w.value()),
                            "height": self._round32(self.gen_h.value()),
-                           "output_format": "png"}
+                           "seed": seed, "output_format": "png"}
                 if self.ref_b64:
                     payload["input_image"] = self.ref_b64
                 self._launch(model_id, payload, None, "status_generating", provider)
@@ -547,10 +647,11 @@ class AIDiffusionDocker(DockWidget):
                 return self._warn("warn_no_prompt_edit")
             if provider == "google":
                 imgs = [img_b64] + ([self.ref_b64] if self.ref_b64 else [])
-                self._launch(model_id, {"prompt": prompt, "images": imgs},
+                self._launch(model_id, {"prompt": prompt, "images": imgs, "seed": seed},
                              crop_info, "status_edit", provider)
             else:
-                payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
+                payload = {"prompt": prompt, "input_image": img_b64,
+                           "seed": seed, "output_format": "png"}
                 if self.ref_b64:
                     payload["input_image_2"] = self.ref_b64
                 self._launch(model_id, payload, crop_info, "status_edit", provider)
@@ -562,11 +663,12 @@ class AIDiffusionDocker(DockWidget):
                 tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             mask_b64 = self.qimage_to_b64(mask)
             payload = {"prompt": prompt, "image": img_b64, "mask": mask_b64,
-                       "output_format": "png"}
+                       "seed": seed, "output_format": "png"}
             self._launch(FILL_ENDPOINT, payload, crop_info, "status_fill", "bfl")
 
     def _launch(self, endpoint, payload, crop_info, status_key, provider="bfl"):
         self.status_lbl.setText(self.tr(status_key))
+        self.busy = True
         self._set_busy(True)
         api_key = self.g_key.text().strip() if provider == "google" else self.f_key.text().strip()
         self.worker = APIWorker(endpoint, payload, api_key, crop_info,
@@ -576,22 +678,27 @@ class AIDiffusionDocker(DockWidget):
         self.worker.status.connect(self.status_lbl.setText)
         self.worker.finished.connect(self.handle_res)
         self.worker.error.connect(self.handle_err)
+        # Beendete Threads verwerfen, laufende (z.B. abgebrochene) am Leben halten
+        self._threads = [t for t in self._threads if t.isRunning()]
+        self._threads.append(self.worker)
         self.worker.start()
 
     def _set_busy(self, busy):
         self.btn_gen.setEnabled(not busy)
         self.btn_edit.setEnabled(not busy)
+        self.btn_cancel.setEnabled(busy)
         # Masken-Inpaint nur für FLUX (BFL); Nano Banana kann das nicht
         fill_ok = MODELS[self.model_cb.currentIndex()]["provider"] == "bfl"
         self.btn_fill.setEnabled(not busy and fill_ok)
 
     def _on_model_changed(self, *_):
-        if self.worker and self.worker.isRunning():
+        if self.busy:
             return
         self._set_busy(False)
 
     # --- Ergebnis -----------------------------------------------------------
     def handle_err(self, msg):
+        self.busy = False
         self._set_busy(False)
         if len(msg) > 400:
             msg = msg[:400] + " ... [truncated]"
@@ -599,6 +706,7 @@ class AIDiffusionDocker(DockWidget):
         QMessageBox.warning(None, "AI API Diffusion", self.tr("err_prefix") + msg)
 
     def handle_res(self, res):
+        self.busy = False
         self._set_busy(False)
         doc = Krita.instance().activeDocument()
         if not doc:

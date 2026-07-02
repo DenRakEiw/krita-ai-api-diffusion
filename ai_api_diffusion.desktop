@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=ai_api_diffusion
+X-Python-2-Compatible=false
+Name=Krita AI API Diffusion
+Comment=Plugin for BFL Flux and Google Nano Banana 2

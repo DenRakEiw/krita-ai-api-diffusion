@@ -23,6 +23,10 @@ optional reference image. The interface is **multilingual**
   via `image` + `mask` (`flux-pro-1.0-fill`). FLUX only.
 - **Reference image (optional)** — an additional image used as a template, e.g.
   a specific pair of sunglasses that a selected cat should wear.
+- **Seed control** — random seed by default; lock a seed (or roll a new one) to
+  reproduce a result or make controlled variations.
+- **Aspect-ratio presets** — 1:1, 3:2, 16:9, 4:3, … (or custom width/height).
+- **Cancel button** — abort a running request instead of waiting for the poll.
 - **Multilingual UI** — switch language at runtime under *Options*.
 - Adaptive crop with context padding, feathered mask edges (no visible seams),
   correct color handling and readable error messages.
@@ -38,7 +42,17 @@ optional reference image. The interface is **multilingual**
 
 ## Installation
 
-### Option A — manual (recommended)
+### Option A — packaged ZIP (easiest)
+
+1. Grab `krita-ai-api-diffusion.zip` from the repo’s Releases (or build it
+   yourself: run `python build_zip.py`, which writes it to `dist/`).
+2. In Krita: **Tools → Scripts → Import Python Plugin from File** and select the
+   ZIP.
+3. Open **Settings → Configure Krita → Python Plugin Manager**, enable
+   **Krita AI API Diffusion**, then restart Krita.
+4. Show the docker via **Settings → Dockers → Krita AI API Diffusion**.
+
+### Option B — manual
 
 1. Download or clone the repository:
    ```bash
@@ -78,7 +92,7 @@ optional reference image. The interface is **multilingual**
    **Krita AI API Diffusion**, then restart Krita.
 5. Show the docker via **Settings → Dockers → Krita AI API Diffusion**.
 
-### Option B — clone directly into pykrita
+### Option C — clone directly into pykrita
 
 ```bash
 cd <pykrita-directory>
