@@ -11,9 +11,20 @@ from krita import DockWidget, Krita
 #   FLUX.2 (kontextbasiertes Editing)  -> input_image + prompt, KEINE mask
 #   FLUX.1 Fill (maskenbasiert)        -> image + mask + prompt
 # ---------------------------------------------------------------------------
-FLUX2_MODELS = ["flux-2-pro", "flux-2-max", "flux-2-flex", "flux-2-klein-9b"]
+# Modelle mit Anbieter-Zuordnung. provider: "bfl" (Black Forest Labs) | "google"
+MODELS = [
+    {"label": "flux-2-pro", "provider": "bfl", "id": "flux-2-pro"},
+    {"label": "flux-2-max", "provider": "bfl", "id": "flux-2-max"},
+    {"label": "flux-2-flex", "provider": "bfl", "id": "flux-2-flex"},
+    {"label": "flux-2-klein-9b", "provider": "bfl", "id": "flux-2-klein-9b"},
+    {"label": "nano-banana-2 (Gemini 3.1 Flash)", "provider": "google",
+     "id": "gemini-3.1-flash-image"},
+    {"label": "nano-banana-pro (Gemini 3 Pro)", "provider": "google",
+     "id": "gemini-3-pro-image"},
+]
 FILL_ENDPOINT = "flux-pro-1.0-fill"
 API_BASE = "https://api.bfl.ai/v1/"
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 CONTEXT_PAD = 0.35   # Kontext-Rand um die Auswahl (Anteil der Auswahlgröße)
 MAX_EDGE = 1536      # Max. Kantenlänge, die zur API geschickt wird
@@ -46,6 +57,10 @@ TR = {
         "label_apikey": "API Key (BFL):", "btn_save": "Save", "saved": "Saved.",
         "label_width": "Width (new image):", "label_height": "Height (new image):",
         "feather": "Feather mask edge (soft transitions)", "label_language": "Language:",
+        "label_gkey": "Google AI Studio API Key:",
+        "warn_no_gkey": "Please save a Google AI Studio API key under 'Options' first.",
+        "warn_fill_flux_only": "Mask Inpaint requires a FLUX model. Nano Banana supports "
+                               "Generate and Context Inpaint.",
         "warn_no_doc": "No active document.",
         "warn_no_key": "Please save an API key under 'Options' first.",
         "warn_running": "A request is already running.",
@@ -78,6 +93,10 @@ TR = {
         "label_apikey": "API Key (BFL):", "btn_save": "Speichern", "saved": "Gespeichert.",
         "label_width": "Breite (Neues Bild):", "label_height": "Höhe (Neues Bild):",
         "feather": "Maskenkante federn (weiche Übergänge)", "label_language": "Sprache:",
+        "label_gkey": "Google AI Studio API Key:",
+        "warn_no_gkey": "Bitte zuerst einen Google AI Studio API Key unter 'Optionen' speichern.",
+        "warn_fill_flux_only": "Masken-Inpaint benötigt ein FLUX-Modell. Nano Banana kann "
+                               "Generieren und Kontext-Inpaint.",
         "warn_no_doc": "Kein aktives Dokument.",
         "warn_no_key": "Bitte zuerst einen API Key unter 'Optionen' speichern.",
         "warn_running": "Es läuft bereits eine Anfrage.",
@@ -109,6 +128,9 @@ TR = {
         "label_apikey": "API 密钥（BFL）：", "btn_save": "保存", "saved": "已保存。",
         "label_width": "宽度（新图像）：", "label_height": "高度（新图像）：",
         "feather": "羽化蒙版边缘（柔和过渡）", "label_language": "语言：",
+        "label_gkey": "Google AI Studio API 密钥：",
+        "warn_no_gkey": "请先在 '选项' 中保存 Google AI Studio API 密钥。",
+        "warn_fill_flux_only": "蒙版修复需要 FLUX 模型。Nano Banana 支持生成和上下文修复。",
         "warn_no_doc": "没有活动文档。",
         "warn_no_key": "请先在 '选项' 中保存 API 密钥。",
         "warn_running": "已有请求正在运行。",
@@ -141,6 +163,10 @@ TR = {
         "label_apikey": "คีย์ API (BFL):", "btn_save": "บันทึก", "saved": "บันทึกแล้ว",
         "label_width": "ความกว้าง (ภาพใหม่):", "label_height": "ความสูง (ภาพใหม่):",
         "feather": "ทำขอบมาสก์ให้นุ่ม (การเปลี่ยนผ่านนุ่มนวล)", "label_language": "ภาษา:",
+        "label_gkey": "คีย์ API ของ Google AI Studio:",
+        "warn_no_gkey": "กรุณาบันทึกคีย์ API ของ Google AI Studio ใน 'ตัวเลือก' ก่อน",
+        "warn_fill_flux_only": "อินเพนต์ด้วยมาสก์ต้องใช้โมเดล FLUX. Nano Banana รองรับ "
+                               "การสร้างและอินเพนต์ตามบริบท",
         "warn_no_doc": "ไม่มีเอกสารที่ใช้งานอยู่",
         "warn_no_key": "กรุณาบันทึกคีย์ API ใน 'ตัวเลือก' ก่อน",
         "warn_running": "มีคำขอกำลังทำงานอยู่แล้ว",
@@ -161,7 +187,8 @@ class APIWorker(QThread):
     status = pyqtSignal(str)
 
     def __init__(self, endpoint, payload, api_key, crop_info=None,
-                 status_wait="Waiting for result ...", status_prefix="Status:"):
+                 status_wait="Waiting for result ...", status_prefix="Status:",
+                 provider="bfl"):
         super().__init__()
         self.endpoint = endpoint
         self.payload = payload
@@ -169,8 +196,50 @@ class APIWorker(QThread):
         self.crop_info = crop_info
         self.status_wait = status_wait
         self.status_prefix = status_prefix
+        self.provider = provider
 
     def run(self):
+        try:
+            if self.provider == "google":
+                self._run_google()
+            else:
+                self._run_bfl()
+        except Exception as e:
+            self.error.emit(str(e))
+
+    def _run_google(self):
+        # Gemini generateContent: synchron, Bild als inline_data zurück
+        url = "{}{}:generateContent".format(GEMINI_BASE, self.endpoint)
+        headers = {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
+        parts = [{"text": self.payload.get("prompt", "")}]
+        for b64 in self.payload.get("images", []):
+            parts.append({"inline_data": {"mime_type": "image/png", "data": b64}})
+        body = {"contents": [{"parts": parts}]}
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                res = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as he:
+            detail = he.read().decode(errors="replace")
+            raise Exception(f"HTTP {he.code} (Gemini {self.endpoint}): {detail}")
+
+        cands = res.get("candidates") or []
+        if not cands:
+            fb = res.get("promptFeedback") or res.get("error") or res
+            raise Exception(f"Gemini: no candidates - {fb}")
+        for part in cands[0].get("content", {}).get("parts", []):
+            inline = part.get("inlineData") or part.get("inline_data")
+            if inline and inline.get("data"):
+                img_bytes = base64.b64decode(inline["data"])
+                self.finished.emit({"image_data": img_bytes, "crop": self.crop_info})
+                return
+        # Kein Bild -> ggf. Text/Blockgrund zurückgeben
+        reason = cands[0].get("finishReason", "")
+        texts = [p.get("text", "") for p in cands[0].get("content", {}).get("parts", [])]
+        raise Exception(f"Gemini: no image returned ({reason}) {' '.join(texts)[:200]}")
+
+    def _run_bfl(self):
         try:
             url = API_BASE + self.endpoint
             headers = {"accept": "application/json", "x-key": self.api_key,
@@ -233,7 +302,7 @@ class AIDiffusionDocker(DockWidget):
         gen_l = QVBoxLayout(self.tab_gen)
         self.lbl_model = QLabel()
         self.model_cb = QComboBox()
-        self.model_cb.addItems(FLUX2_MODELS)
+        self.model_cb.addItems([m["label"] for m in MODELS])
         self.lbl_prompt = QLabel()
         self.prompt_ed = QPlainTextEdit()
         self.status_lbl = QLabel()
@@ -274,6 +343,8 @@ class AIDiffusionDocker(DockWidget):
 
         self.f_key = QLineEdit()
         self.f_key.setEchoMode(QLineEdit.Password)
+        self.g_key = QLineEdit()
+        self.g_key.setEchoMode(QLineEdit.Password)
         self.btn_save = QPushButton()
         self.btn_save.clicked.connect(self.save_k)
 
@@ -284,10 +355,12 @@ class AIDiffusionDocker(DockWidget):
 
         self.lbl_lang = QLabel()
         self.lbl_apikey = QLabel()
+        self.lbl_gkey = QLabel()
         self.lbl_width = QLabel()
         self.lbl_height = QLabel()
         opt_l.addRow(self.lbl_lang, self.lang_cb)
         opt_l.addRow(self.lbl_apikey, self.f_key)
+        opt_l.addRow(self.lbl_gkey, self.g_key)
         opt_l.addRow(self.btn_save)
         opt_l.addRow(self.lbl_width, self.gen_w)
         opt_l.addRow(self.lbl_height, self.gen_h)
@@ -324,6 +397,7 @@ class AIDiffusionDocker(DockWidget):
         self.btn_fill.setText(self.tr("btn_fill"))
         self.lbl_lang.setText(self.tr("label_language"))
         self.lbl_apikey.setText(self.tr("label_apikey"))
+        self.lbl_gkey.setText(self.tr("label_gkey"))
         self.btn_save.setText(self.tr("btn_save"))
         self.lbl_width.setText(self.tr("label_width"))
         self.lbl_height.setText(self.tr("label_height"))
@@ -338,11 +412,15 @@ class AIDiffusionDocker(DockWidget):
 
     # --- Settings -----------------------------------------------------------
     def save_k(self):
-        Krita.instance().writeSetting("AIDiffusion", "fk_vPRO", self.f_key.text().strip())
+        kr = Krita.instance()
+        kr.writeSetting("AIDiffusion", "fk_vPRO", self.f_key.text().strip())
+        kr.writeSetting("AIDiffusion", "gkey", self.g_key.text().strip())
         self.status_lbl.setText(self.tr("saved"))
 
     def load_k(self):
-        self.f_key.setText(Krita.instance().readSetting("AIDiffusion", "fk_vPRO", ""))
+        kr = Krita.instance()
+        self.f_key.setText(kr.readSetting("AIDiffusion", "fk_vPRO", ""))
+        self.g_key.setText(kr.readSetting("AIDiffusion", "gkey", ""))
 
     # --- Helpers ------------------------------------------------------------
     def _warn(self, key):
@@ -412,27 +490,37 @@ class AIDiffusionDocker(DockWidget):
     # --- Start --------------------------------------------------------------
     def _start(self, mode):
         doc = Krita.instance().activeDocument()
-        key = self.f_key.text().strip()
         if not doc:
             return self._warn("warn_no_doc")
-        if not key:
-            return self._warn("warn_no_key")
         if self.worker and self.worker.isRunning():
             return self._warn("warn_running")
 
+        sel = MODELS[self.model_cb.currentIndex()]
+        provider, model_id = sel["provider"], sel["id"]
         prompt = self.prompt_ed.toPlainText().strip()
-        model = self.model_cb.currentText()
+
+        # Passenden API-Key prüfen
+        if provider == "google":
+            if not self.g_key.text().strip():
+                return self._warn("warn_no_gkey")
+        elif not self.f_key.text().strip():
+            return self._warn("warn_no_key")
 
         if mode == "generate":
             if not prompt:
                 return self._warn("warn_no_prompt")
-            payload = {"prompt": prompt,
-                       "width": self._round32(self.gen_w.value()),
-                       "height": self._round32(self.gen_h.value()),
-                       "output_format": "png"}
-            if self.ref_b64:
-                payload["input_image"] = self.ref_b64
-            self._launch(model, payload, None, "status_generating")
+            if provider == "google":
+                imgs = [self.ref_b64] if self.ref_b64 else []
+                self._launch(model_id, {"prompt": prompt, "images": imgs},
+                             None, "status_generating", provider)
+            else:
+                payload = {"prompt": prompt,
+                           "width": self._round32(self.gen_w.value()),
+                           "height": self._round32(self.gen_h.value()),
+                           "output_format": "png"}
+                if self.ref_b64:
+                    payload["input_image"] = self.ref_b64
+                self._launch(model_id, payload, None, "status_generating", provider)
             return
 
         crop = self._selection_crop(doc)
@@ -449,25 +537,34 @@ class AIDiffusionDocker(DockWidget):
         if mode == "edit":
             if not prompt:
                 return self._warn("warn_no_prompt_edit")
-            payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
-            if self.ref_b64:
-                payload["input_image_2"] = self.ref_b64
-            self._launch(model, payload, crop_info, "status_edit")
+            if provider == "google":
+                imgs = [img_b64] + ([self.ref_b64] if self.ref_b64 else [])
+                self._launch(model_id, {"prompt": prompt, "images": imgs},
+                             crop_info, "status_edit", provider)
+            else:
+                payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
+                if self.ref_b64:
+                    payload["input_image_2"] = self.ref_b64
+                self._launch(model_id, payload, crop_info, "status_edit", provider)
 
         elif mode == "fill":
+            if provider == "google":
+                return self._warn("warn_fill_flux_only")
             mask = self._read_mask(doc, x, y, w, h).scaled(
                 tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             mask_b64 = self.qimage_to_b64(mask)
             payload = {"prompt": prompt, "image": img_b64, "mask": mask_b64,
                        "output_format": "png"}
-            self._launch(FILL_ENDPOINT, payload, crop_info, "status_fill")
+            self._launch(FILL_ENDPOINT, payload, crop_info, "status_fill", "bfl")
 
-    def _launch(self, endpoint, payload, crop_info, status_key):
+    def _launch(self, endpoint, payload, crop_info, status_key, provider="bfl"):
         self.status_lbl.setText(self.tr(status_key))
         self._set_busy(True)
-        self.worker = APIWorker(endpoint, payload, self.f_key.text().strip(), crop_info,
+        api_key = self.g_key.text().strip() if provider == "google" else self.f_key.text().strip()
+        self.worker = APIWorker(endpoint, payload, api_key, crop_info,
                                 status_wait=self.tr("status_waiting"),
-                                status_prefix=self.tr("status_prefix"))
+                                status_prefix=self.tr("status_prefix"),
+                                provider=provider)
         self.worker.status.connect(self.status_lbl.setText)
         self.worker.finished.connect(self.handle_res)
         self.worker.error.connect(self.handle_err)
