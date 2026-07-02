@@ -1,5 +1,8 @@
 # Krita AI API Diffusion
 
+<img width="1898" height="1001" alt="krita" src="https://github.com/user-attachments/assets/47345a31-6931-4fdb-9188-fe9e2f5c61cb" />
+
+
 A Krita plugin that brings the **FLUX** models from
 [Black Forest Labs (BFL)](https://bfl.ai) directly into Krita — for
 text-to-image, context-based inpainting and mask-based inpainting, with an
