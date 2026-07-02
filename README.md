@@ -1,48 +1,50 @@
 # Krita AI API Diffusion
 
-Ein Krita-Plugin, das die **FLUX**-Modelle von [Black Forest Labs (BFL)](https://bfl.ai)
-direkt in Krita nutzbar macht – für Text-zu-Bild, kontextbasiertes Inpainting und
-maskenbasiertes Inpainting, inklusive optionalem Referenzbild.
+A Krita plugin that brings the **FLUX** models from
+[Black Forest Labs (BFL)](https://bfl.ai) directly into Krita — for
+text-to-image, context-based inpainting and mask-based inpainting, with an
+optional reference image. The interface is **multilingual**
+(English / Deutsch / 中文 / ไทย).
 
-## Funktionen
+## Features
 
-- **Neues Bild (Text → Bild)** – Bildgenerierung aus einem Prompt (FLUX.2).
-- **Kontext-Inpaint (FLUX.2)** – bearbeitet die aktuelle Auswahl kontextbasiert
-  über `input_image` (keine Maske nötig). Ideal für Anweisungen wie
-  „entferne die Person" oder „ersetze den Himmel".
-- **Masken-Inpaint (FLUX.1 Fill)** – präzises Füllen exakt innerhalb der Auswahl
-  über `image` + `mask` (`flux-pro-1.0-fill`).
-- **Referenzbild (optional)** – ein zusätzliches Bild als Vorlage, z. B. eine
-  bestimmte Sonnenbrille, die eine ausgewählte Katze tragen soll. Wird beim
-  Kontext-Inpaint als `input_image_2` und beim Generieren als `input_image`
-  mitgeschickt.
-- Adaptiver Zuschnitt mit Kontext-Rand, gefederte Maskenkanten (keine sichtbaren
-  Nähte), korrekte Farbbehandlung und lesbare Fehlermeldungen.
+- **New image (text → image)** — generate an image from a prompt (FLUX.2).
+- **Context Inpaint (FLUX.2)** — edits the current selection context-based via
+  `input_image` (no mask needed). Great for instructions like
+  “remove the person” or “replace the sky”.
+- **Mask Inpaint (FLUX.1 Fill)** — precise filling exactly inside the selection
+  via `image` + `mask` (`flux-pro-1.0-fill`).
+- **Reference image (optional)** — an additional image used as a template, e.g.
+  a specific pair of sunglasses that a selected cat should wear. Sent as
+  `input_image_2` for context inpaint and as `input_image` for generation.
+- **Multilingual UI** — switch language at runtime under *Options*.
+- Adaptive crop with context padding, feathered mask edges (no visible seams),
+  correct color handling and readable error messages.
 
-## Voraussetzungen
+## Requirements
 
-- **Krita 5.x** (mit Python/PyQt5 – in den offiziellen Builds enthalten).
-- Ein **BFL API-Key** von <https://api.bfl.ai> (bzw. dem BFL-Dashboard).
-- Guthaben auf dem BFL-Konto (die FLUX-Modelle sind kostenpflichtig).
+- **Krita 5.x** (includes Python/PyQt5 in the official builds).
+- A **BFL API key** from <https://api.bfl.ai> (the BFL dashboard).
+- Credits on your BFL account (the FLUX models are paid).
 
 ## Installation
 
-### Variante A – manuell (empfohlen)
+### Option A — manual (recommended)
 
-1. Repository herunterladen oder klonen:
+1. Download or clone the repository:
    ```bash
    git clone https://github.com/DenRakEiw/krita-ai-api-diffusion.git
    ```
-2. Den Ordner `ai_api_diffusion` **und** die Datei `ai_api_diffusion.desktop`
-   in das Krita-`pykrita`-Verzeichnis kopieren:
+2. Copy the `ai_api_diffusion` folder **and** the `ai_api_diffusion.desktop`
+   file into Krita’s `pykrita` directory:
 
-   | Betriebssystem | Pfad |
-   |----------------|------|
+   | OS | Path |
+   |----|------|
    | Windows | `%APPDATA%\krita\pykrita\` |
    | Linux   | `~/.local/share/krita/pykrita/` |
    | macOS   | `~/Library/Application Support/krita/pykrita/` |
 
-   Danach sieht es so aus:
+   The result should look like this:
    ```
    pykrita/
    ├── ai_api_diffusion.desktop
@@ -51,7 +53,7 @@ maskenbasiertes Inpainting, inklusive optionalem Referenzbild.
        └── ai_api_diffusion_docker.py
    ```
 
-   > Falls die `.desktop`-Datei fehlt, mit diesem Inhalt anlegen:
+   > If the `.desktop` file is missing, create it with this content:
    > ```ini
    > [Desktop Entry]
    > Type=Service
@@ -59,82 +61,83 @@ maskenbasiertes Inpainting, inklusive optionalem Referenzbild.
    > X-KDE-Library=ai_api_diffusion
    > X-Python-2-Compatible=false
    > Name=Krita AI API Diffusion
-   > Comment=Plugin für Flux (BFL)
+   > Comment=Plugin for Flux (BFL)
    > ```
 
-3. **Krita starten.**
-4. Menü **Einstellungen → Krita konfigurieren → Python Plugin Manager**
-   öffnen, den Haken bei **Krita AI API Diffusion** setzen und Krita neu starten.
-5. Das Andockfenster über **Einstellungen → Andockbare Dialoge →
-   Krita AI API Diffusion** einblenden.
+3. **Start Krita.**
+4. Open **Settings → Configure Krita → Python Plugin Manager**, enable
+   **Krita AI API Diffusion**, then restart Krita.
+5. Show the docker via **Settings → Dockers → Krita AI API Diffusion**.
 
-### Variante B – direkt ins pykrita-Verzeichnis klonen
+### Option B — clone directly into pykrita
 
 ```bash
-cd <pykrita-Verzeichnis>
+cd <pykrita-directory>
 git clone https://github.com/DenRakEiw/krita-ai-api-diffusion.git ai_api_diffusion
 ```
-Anschließend die `.desktop`-Datei wie oben eine Ebene höher (nach `pykrita/`)
-kopieren und wie in Schritt 3–5 fortfahren.
+Then copy the `.desktop` file one level up (into `pykrita/`) as shown above and
+continue with steps 3–5.
 
-## Einrichtung
+## Setup
 
-1. Im Andockfenster auf den Tab **Optionen** wechseln.
-2. Den **API Key (BFL)** eintragen und auf **Speichern** klicken.
-   (Der Key wird in den Krita-Einstellungen gespeichert.)
+1. In the docker, switch to the **Options** tab.
+2. Pick your **Language** (English / Deutsch / 中文 / ไทย) — applied instantly.
+3. Enter your **API Key (BFL)** and click **Save**.
+   (The key and language are stored in Krita’s settings.)
 
-## Benutzung
+## Usage
 
-### Neues Bild
-1. Tab **Generieren**, Modell wählen (z. B. `flux-2-pro`).
-2. Prompt eingeben, optional Breite/Höhe unter **Optionen**.
-3. **Neues Bild (Text → Bild)** klicken – das Ergebnis kommt als neue Ebene.
+### New image
+1. **Generate** tab, choose a model (e.g. `flux-2-pro`).
+2. Enter a prompt; optionally set width/height under **Options**.
+3. Click **New image (text → image)** — the result is added as a new layer.
 
-### Kontext-Inpaint (FLUX.2)
-1. Mit einem Auswahlwerkzeug den zu ändernden Bereich auswählen.
-2. Als Prompt eine Edit-Anweisung schreiben, z. B. „remove the object".
-3. **Kontext-Inpaint (FLUX.2)** klicken.
-4. Nur der Auswahlbereich wird ersetzt (weich eingeblendet).
+### Context Inpaint (FLUX.2)
+1. Select the area to change with a selection tool.
+2. Enter an edit instruction as the prompt, e.g. “remove the object”.
+3. Click **Context Inpaint (FLUX.2)**.
+4. Only the selected area is replaced (softly blended in).
 
-### Masken-Inpaint (FLUX.1 Fill)
-1. Bereich auswählen (mind. ~256 px – kleine Auswahlen werden hochskaliert).
-2. Optional Prompt eingeben.
-3. **Masken-Inpaint (FLUX.1 Fill)** klicken – präzises Füllen innerhalb der Maske.
+### Mask Inpaint (FLUX.1 Fill)
+1. Select an area (min. ~256 px — small selections are upscaled).
+2. Optionally enter a prompt.
+3. Click **Mask Inpaint (FLUX.1 Fill)** — precise filling inside the mask.
 
-### Mit Referenzbild (Beispiel: Sonnenbrille auf Katze)
-1. Kopf-/Augenbereich der Katze auswählen.
-2. **Referenzbild wählen …** und das Bild der Sonnenbrille laden.
-3. Modell `flux-2-pro` oder `flux-2-max` wählen (unterstützen Multi-Image).
-4. Prompt: *„the cat is wearing these sunglasses"*.
-5. **Kontext-Inpaint (FLUX.2)** klicken.
+### With a reference image (example: sunglasses on a cat)
+1. Select the head/eye area of the cat.
+2. Click **Choose reference image …** and load the sunglasses image.
+3. Choose model `flux-2-pro` or `flux-2-max` (they support multi-image).
+4. Prompt: *“the cat is wearing these sunglasses”*.
+5. Click **Context Inpaint (FLUX.2)**.
 
-## Modelle
+## Models
 
-| Auswahl | Endpoint | Einsatz |
-|---------|----------|---------|
-| `flux-2-pro` | `flux-2-pro` | Standard, gute Qualität, Multi-Image |
-| `flux-2-max` | `flux-2-max` | Höchste Qualität, Multi-Image |
-| `flux-2-flex` | `flux-2-flex` | Stark bei Typografie/Text |
-| `flux-2-klein-9b` | `flux-2-klein-9b` | Schnell, leichter (kein Referenzbild) |
-| Masken-Inpaint | `flux-pro-1.0-fill` | Maskenbasiertes Füllen |
+| Selection | Endpoint | Use |
+|-----------|----------|-----|
+| `flux-2-pro` | `flux-2-pro` | Default, good quality, multi-image |
+| `flux-2-max` | `flux-2-max` | Highest quality, multi-image |
+| `flux-2-flex` | `flux-2-flex` | Strong at typography/text |
+| `flux-2-klein-9b` | `flux-2-klein-9b` | Fast, lightweight (no reference image) |
+| Mask Inpaint | `flux-pro-1.0-fill` | Mask-based filling |
 
-## Tipps & Fehlerbehebung
+## Tips & troubleshooting
 
-- **HTTP 422 „Image dimensions must be at least 256x256"** – Auswahl zu klein.
-  Wird automatisch hochskaliert; für scharfe Ergebnisse trotzdem größer auswählen.
-- **HTTP 402 / „insufficient credits"** – kein Guthaben auf dem BFL-Konto.
-- **HTTP 401 / 403** – API-Key falsch oder nicht gesetzt (Tab Optionen).
-- **Zu große Payload / Timeout** bei Referenzbildern – `MAX_EDGE` in
-  `ai_api_diffusion_docker.py` senken oder das Referenzbild vorher verkleinern.
-- Fehlermeldungen erscheinen im Statusfeld unten und als Dialog (gekürzt).
+- **HTTP 422 “Image dimensions must be at least 256x256”** — selection too small.
+  It is upscaled automatically; still, select a larger area for sharp results.
+- **HTTP 402 / “insufficient credits”** — no credits on the BFL account.
+- **HTTP 401 / 403** — API key wrong or not set (Options tab).
+- **Payload too large / timeout** with reference images — lower `MAX_EDGE` in
+  `ai_api_diffusion_docker.py` or shrink the reference image beforehand.
+- Error messages appear in the status field at the bottom and as a dialog
+  (truncated).
 
-## Hinweise
+## Notes
 
-- Ergebnis-URLs von BFL sind nur kurz gültig; das Plugin lädt die Bilder sofort.
-- Das Referenzbild wird nur bei FLUX.2 (Kontext-Inpaint/Generieren) verwendet,
-  **nicht** bei FLUX.1 Fill.
+- BFL result URLs are short-lived; the plugin downloads the images immediately.
+- The reference image is only used with FLUX.2 (context inpaint / generation),
+  **not** with FLUX.1 Fill.
 
-## Lizenz
+## License
 
-Nutzung auf eigene Verantwortung. Für die FLUX-Modelle gelten die
-Nutzungsbedingungen und Preise von Black Forest Labs.
+Use at your own risk. The FLUX models are subject to Black Forest Labs’ terms of
+use and pricing.

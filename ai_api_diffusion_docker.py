@@ -15,12 +15,144 @@ FLUX2_MODELS = ["flux-2-pro", "flux-2-max", "flux-2-flex", "flux-2-klein-9b"]
 FILL_ENDPOINT = "flux-pro-1.0-fill"
 API_BASE = "https://api.bfl.ai/v1/"
 
-# Wie viel Kontext-Rand um die Auswahl mitgeschickt wird (Anteil der Auswahlgröße)
-CONTEXT_PAD = 0.35
-# Maximale Kantenlänge, die zur API geschickt wird (Kosten/Speed-Bremse)
-MAX_EDGE = 1536
-# Federung der Maskenkante beim Zurück-Kompositing (kleiner Divisor = weicher)
-FEATHER_DIV = 16
+CONTEXT_PAD = 0.35   # Kontext-Rand um die Auswahl (Anteil der Auswahlgröße)
+MAX_EDGE = 1536      # Max. Kantenlänge, die zur API geschickt wird
+FEATHER_DIV = 16     # Federung der Maskenkante (kleiner = weicher)
+
+# ---------------------------------------------------------------------------
+# Mehrsprachigkeit
+# ---------------------------------------------------------------------------
+LANGUAGES = [("English", "en"), ("Deutsch", "de"), ("中文", "zh"), ("ไทย", "th")]
+
+TR = {
+    "en": {
+        "tab_generate": "Generate", "tab_options": "Options",
+        "label_model": "Model (Generate / Context Inpaint):",
+        "label_prompt": "Prompt:",
+        "prompt_placeholder": "Description / edit instruction, e.g. 'remove the person', "
+                              "'replace the sky with a sunset' ...",
+        "label_reference": "Reference (optional, e.g. object to insert):",
+        "btn_ref_choose": "Choose reference image ...", "btn_ref_clear": "Remove",
+        "ref_none": "No reference image", "ref_set": "Reference: {name} ({w}x{h})",
+        "btn_generate": "New image (text -> image)",
+        "btn_edit": "Context Inpaint (FLUX.2)",
+        "btn_fill": "Mask Inpaint (FLUX.1 Fill)",
+        "status_ready": "Ready", "status_generating": "Generating image ...",
+        "status_edit": "Context Inpaint (FLUX.2) ...",
+        "status_fill": "Mask Inpaint (FLUX.1 Fill) ...",
+        "status_waiting": "Waiting for result ...", "status_prefix": "Status:",
+        "done_generate": "Done - new image inserted.",
+        "done_inpaint": "Done - inpaint inserted as new layer.",
+        "label_apikey": "API Key (BFL):", "btn_save": "Save", "saved": "Saved.",
+        "label_width": "Width (new image):", "label_height": "Height (new image):",
+        "feather": "Feather mask edge (soft transitions)", "label_language": "Language:",
+        "warn_no_doc": "No active document.",
+        "warn_no_key": "Please save an API key under 'Options' first.",
+        "warn_running": "A request is already running.",
+        "warn_no_prompt": "Please enter a prompt.",
+        "warn_no_prompt_edit": "Please enter an edit instruction for context inpaint.",
+        "warn_no_selection": "Please select an area first (selection tool).",
+        "warn_ref_load": "Reference image could not be loaded.",
+        "err_prefix": "Error: ",
+        "dlg_choose_ref": "Choose reference image",
+        "dlg_filter": "Images (*.png *.jpg *.jpeg *.webp *.bmp)",
+    },
+    "de": {
+        "tab_generate": "Generieren", "tab_options": "Optionen",
+        "label_model": "Modell (Generieren / Kontext-Inpaint):",
+        "label_prompt": "Prompt:",
+        "prompt_placeholder": "Beschreibung / Edit-Anweisung, z.B. 'entferne die Person', "
+                              "'ersetze den Himmel durch Sonnenuntergang' ...",
+        "label_reference": "Referenz (optional, z.B. Objekt zum Einfügen):",
+        "btn_ref_choose": "Referenzbild wählen ...", "btn_ref_clear": "Entfernen",
+        "ref_none": "Kein Referenzbild", "ref_set": "Referenz: {name} ({w}x{h})",
+        "btn_generate": "Neues Bild (Text -> Bild)",
+        "btn_edit": "Kontext-Inpaint (FLUX.2)",
+        "btn_fill": "Masken-Inpaint (FLUX.1 Fill)",
+        "status_ready": "Bereit", "status_generating": "Generiere Bild ...",
+        "status_edit": "Kontext-Inpaint (FLUX.2) ...",
+        "status_fill": "Masken-Inpaint (FLUX.1 Fill) ...",
+        "status_waiting": "Warte auf Ergebnis ...", "status_prefix": "Status:",
+        "done_generate": "Fertig - neues Bild eingefügt.",
+        "done_inpaint": "Fertig - Inpaint als neue Ebene eingefügt.",
+        "label_apikey": "API Key (BFL):", "btn_save": "Speichern", "saved": "Gespeichert.",
+        "label_width": "Breite (Neues Bild):", "label_height": "Höhe (Neues Bild):",
+        "feather": "Maskenkante federn (weiche Übergänge)", "label_language": "Sprache:",
+        "warn_no_doc": "Kein aktives Dokument.",
+        "warn_no_key": "Bitte zuerst einen API Key unter 'Optionen' speichern.",
+        "warn_running": "Es läuft bereits eine Anfrage.",
+        "warn_no_prompt": "Bitte einen Prompt eingeben.",
+        "warn_no_prompt_edit": "Für Kontext-Inpaint bitte eine Edit-Anweisung eingeben.",
+        "warn_no_selection": "Bitte zuerst einen Bereich auswählen (Auswahlwerkzeug).",
+        "warn_ref_load": "Referenzbild konnte nicht geladen werden.",
+        "err_prefix": "Fehler: ",
+        "dlg_choose_ref": "Referenzbild wählen",
+        "dlg_filter": "Bilder (*.png *.jpg *.jpeg *.webp *.bmp)",
+    },
+    "zh": {
+        "tab_generate": "生成", "tab_options": "选项",
+        "label_model": "模型（生成 / 上下文修复）：",
+        "label_prompt": "提示词：",
+        "prompt_placeholder": "描述 / 编辑指令，例如 '移除人物'、'把天空替换为日落' ...",
+        "label_reference": "参考图（可选，例如要插入的物体）：",
+        "btn_ref_choose": "选择参考图 ...", "btn_ref_clear": "移除",
+        "ref_none": "无参考图", "ref_set": "参考图：{name}（{w}x{h}）",
+        "btn_generate": "新建图像（文本 → 图像）",
+        "btn_edit": "上下文修复（FLUX.2）",
+        "btn_fill": "蒙版修复（FLUX.1 Fill）",
+        "status_ready": "就绪", "status_generating": "正在生成图像 ...",
+        "status_edit": "上下文修复（FLUX.2）...",
+        "status_fill": "蒙版修复（FLUX.1 Fill）...",
+        "status_waiting": "等待结果 ...", "status_prefix": "状态：",
+        "done_generate": "完成 - 已插入新图像。",
+        "done_inpaint": "完成 - 已作为新图层插入修复结果。",
+        "label_apikey": "API 密钥（BFL）：", "btn_save": "保存", "saved": "已保存。",
+        "label_width": "宽度（新图像）：", "label_height": "高度（新图像）：",
+        "feather": "羽化蒙版边缘（柔和过渡）", "label_language": "语言：",
+        "warn_no_doc": "没有活动文档。",
+        "warn_no_key": "请先在 '选项' 中保存 API 密钥。",
+        "warn_running": "已有请求正在运行。",
+        "warn_no_prompt": "请输入提示词。",
+        "warn_no_prompt_edit": "上下文修复请输入编辑指令。",
+        "warn_no_selection": "请先选择一个区域（选择工具）。",
+        "warn_ref_load": "无法加载参考图。",
+        "err_prefix": "错误：",
+        "dlg_choose_ref": "选择参考图",
+        "dlg_filter": "图像 (*.png *.jpg *.jpeg *.webp *.bmp)",
+    },
+    "th": {
+        "tab_generate": "สร้าง", "tab_options": "ตัวเลือก",
+        "label_model": "โมเดล (สร้าง / อินเพนต์ตามบริบท):",
+        "label_prompt": "พรอมป์:",
+        "prompt_placeholder": "คำอธิบาย / คำสั่งแก้ไข เช่น 'ลบบุคคลออก', "
+                              "'เปลี่ยนท้องฟ้าเป็นพระอาทิตย์ตก' ...",
+        "label_reference": "ภาพอ้างอิง (ไม่บังคับ เช่น วัตถุที่จะใส่เข้าไป):",
+        "btn_ref_choose": "เลือกภาพอ้างอิง ...", "btn_ref_clear": "ลบออก",
+        "ref_none": "ไม่มีภาพอ้างอิง", "ref_set": "อ้างอิง: {name} ({w}x{h})",
+        "btn_generate": "ภาพใหม่ (ข้อความ → ภาพ)",
+        "btn_edit": "อินเพนต์ตามบริบท (FLUX.2)",
+        "btn_fill": "อินเพนต์ด้วยมาสก์ (FLUX.1 Fill)",
+        "status_ready": "พร้อม", "status_generating": "กำลังสร้างภาพ ...",
+        "status_edit": "อินเพนต์ตามบริบท (FLUX.2) ...",
+        "status_fill": "อินเพนต์ด้วยมาสก์ (FLUX.1 Fill) ...",
+        "status_waiting": "กำลังรอผลลัพธ์ ...", "status_prefix": "สถานะ:",
+        "done_generate": "เสร็จสิ้น - แทรกภาพใหม่แล้ว",
+        "done_inpaint": "เสร็จสิ้น - แทรกผลอินเพนต์เป็นเลเยอร์ใหม่แล้ว",
+        "label_apikey": "คีย์ API (BFL):", "btn_save": "บันทึก", "saved": "บันทึกแล้ว",
+        "label_width": "ความกว้าง (ภาพใหม่):", "label_height": "ความสูง (ภาพใหม่):",
+        "feather": "ทำขอบมาสก์ให้นุ่ม (การเปลี่ยนผ่านนุ่มนวล)", "label_language": "ภาษา:",
+        "warn_no_doc": "ไม่มีเอกสารที่ใช้งานอยู่",
+        "warn_no_key": "กรุณาบันทึกคีย์ API ใน 'ตัวเลือก' ก่อน",
+        "warn_running": "มีคำขอกำลังทำงานอยู่แล้ว",
+        "warn_no_prompt": "กรุณาใส่พรอมป์",
+        "warn_no_prompt_edit": "กรุณาใส่คำสั่งแก้ไขสำหรับอินเพนต์ตามบริบท",
+        "warn_no_selection": "กรุณาเลือกพื้นที่ก่อน (เครื่องมือเลือก)",
+        "warn_ref_load": "ไม่สามารถโหลดภาพอ้างอิงได้",
+        "err_prefix": "ข้อผิดพลาด: ",
+        "dlg_choose_ref": "เลือกภาพอ้างอิง",
+        "dlg_filter": "รูปภาพ (*.png *.jpg *.jpeg *.webp *.bmp)",
+    },
+}
 
 
 class APIWorker(QThread):
@@ -28,12 +160,15 @@ class APIWorker(QThread):
     error = pyqtSignal(str)
     status = pyqtSignal(str)
 
-    def __init__(self, endpoint, payload, api_key, crop_info=None):
+    def __init__(self, endpoint, payload, api_key, crop_info=None,
+                 status_wait="Waiting for result ...", status_prefix="Status:"):
         super().__init__()
         self.endpoint = endpoint
         self.payload = payload
         self.api_key = api_key
         self.crop_info = crop_info
+        self.status_wait = status_wait
+        self.status_prefix = status_prefix
 
     def run(self):
         try:
@@ -51,9 +186,9 @@ class APIWorker(QThread):
 
             polling_url = body.get("polling_url")
             if not polling_url:
-                raise Exception(f"Keine polling_url erhalten: {body}")
+                raise Exception(f"No polling_url received: {body}")
 
-            self.status.emit("Warte auf Ergebnis ...")
+            self.status.emit(self.status_wait)
             while True:
                 time.sleep(1.5)
                 p_req = urllib.request.Request(polling_url, headers=headers)
@@ -68,8 +203,8 @@ class APIWorker(QThread):
                     return
                 if st in ("Error", "Failed", "Content Moderated",
                           "Request Moderated", "Task not found"):
-                    raise Exception(f"BFL: {st} – {res.get('details') or res.get('error') or res}")
-                self.status.emit(f"Status: {st} ...")
+                    raise Exception(f"BFL: {st} - {res.get('details') or res.get('error') or res}")
+                self.status.emit(f"{self.status_prefix} {st} ...")
         except Exception as e:
             self.error.emit(str(e))
 
@@ -78,32 +213,37 @@ class AIDiffusionDocker(DockWidget):
     def __init__(self):
         super().__init__()
         self.worker = None
+        self.ref_b64 = None
+        self.ref_name = None
+        self.ref_w = self.ref_h = 0
+        self.lang = Krita.instance().readSetting("AIDiffusion", "lang", "en") or "en"
+        if self.lang not in TR:
+            self.lang = "en"
+
         self.setWindowTitle("Krita AI API Diffusion")
         main_w = QWidget()
         layout = QVBoxLayout(main_w)
         self.tabs = QTabWidget()
         self.tab_gen = QWidget()
         self.tab_opt = QWidget()
-        self.tabs.addTab(self.tab_gen, "Generieren")
-        self.tabs.addTab(self.tab_opt, "Optionen")
+        self.tabs.addTab(self.tab_gen, "")
+        self.tabs.addTab(self.tab_opt, "")
 
         # --- Tab: Generieren -------------------------------------------------
         gen_l = QVBoxLayout(self.tab_gen)
+        self.lbl_model = QLabel()
         self.model_cb = QComboBox()
         self.model_cb.addItems(FLUX2_MODELS)
+        self.lbl_prompt = QLabel()
         self.prompt_ed = QPlainTextEdit()
-        self.prompt_ed.setPlaceholderText(
-            "Beschreibung / Edit-Anweisung, z.B. 'entferne die Person', "
-            "'ersetze den Himmel durch Sonnenuntergang' ...")
-        self.status_lbl = QLabel("Bereit")
+        self.status_lbl = QLabel()
         self.status_lbl.setWordWrap(True)
 
-        # --- Referenzbild (optional, nur Kontext-Inpaint / Generieren) ------
-        self.ref_b64 = None
-        self.ref_lbl = QLabel("Kein Referenzbild")
+        self.lbl_ref = QLabel()
+        self.ref_lbl = QLabel()
         self.ref_lbl.setWordWrap(True)
-        self.btn_ref = QPushButton("Referenzbild wählen ...")
-        self.btn_ref_clr = QPushButton("Entfernen")
+        self.btn_ref = QPushButton()
+        self.btn_ref_clr = QPushButton()
         self.btn_ref.clicked.connect(self.choose_ref)
         self.btn_ref_clr.clicked.connect(self.clear_ref)
         ref_row = QHBoxLayout()
@@ -111,117 +251,153 @@ class AIDiffusionDocker(DockWidget):
         ref_row.addWidget(self.btn_ref_clr)
         ref_box = QWidget(); ref_box.setLayout(ref_row)
 
-        self.btn_gen = QPushButton("Neues Bild (Text -> Bild)")
-        self.btn_edit = QPushButton("Kontext-Inpaint (FLUX.2)")
-        self.btn_fill = QPushButton("Masken-Inpaint (FLUX.1 Fill)")
+        self.btn_gen = QPushButton()
+        self.btn_edit = QPushButton()
+        self.btn_fill = QPushButton()
         self.btn_gen.clicked.connect(lambda: self._start("generate"))
         self.btn_edit.clicked.connect(lambda: self._start("edit"))
         self.btn_fill.clicked.connect(lambda: self._start("fill"))
 
-        for w in [QLabel("Modell (Generieren / Kontext-Inpaint):"), self.model_cb,
-                  QLabel("Prompt:"), self.prompt_ed,
-                  QLabel("Referenz (optional, z.B. Objekt zum Einfügen):"),
-                  ref_box, self.ref_lbl,
+        for w in [self.lbl_model, self.model_cb, self.lbl_prompt, self.prompt_ed,
+                  self.lbl_ref, ref_box, self.ref_lbl,
                   self.btn_gen, self.btn_edit, self.btn_fill, self.status_lbl]:
             gen_l.addWidget(w)
         gen_l.addStretch()
 
         # --- Tab: Optionen ---------------------------------------------------
         opt_l = QFormLayout(self.tab_opt)
+        self.lang_cb = QComboBox()
+        self.lang_cb.addItems([name for name, _ in LANGUAGES])
+        codes = [c for _, c in LANGUAGES]
+        self.lang_cb.setCurrentIndex(codes.index(self.lang) if self.lang in codes else 0)
+        self.lang_cb.currentIndexChanged.connect(self._on_lang_changed)
+
         self.f_key = QLineEdit()
         self.f_key.setEchoMode(QLineEdit.Password)
-        btn_s = QPushButton("Speichern")
-        btn_s.clicked.connect(self.save_k)
+        self.btn_save = QPushButton()
+        self.btn_save.clicked.connect(self.save_k)
 
         self.gen_w = QSpinBox(); self.gen_w.setRange(256, 4096); self.gen_w.setSingleStep(64); self.gen_w.setValue(1024)
         self.gen_h = QSpinBox(); self.gen_h.setRange(256, 4096); self.gen_h.setSingleStep(64); self.gen_h.setValue(1024)
-        self.feather_cb = QCheckBox("Maskenkante federn (weiche Übergänge)")
+        self.feather_cb = QCheckBox()
         self.feather_cb.setChecked(True)
 
-        opt_l.addRow("API Key (BFL):", self.f_key)
-        opt_l.addRow(btn_s)
-        opt_l.addRow("Breite (Neues Bild):", self.gen_w)
-        opt_l.addRow("Höhe (Neues Bild):", self.gen_h)
+        self.lbl_lang = QLabel()
+        self.lbl_apikey = QLabel()
+        self.lbl_width = QLabel()
+        self.lbl_height = QLabel()
+        opt_l.addRow(self.lbl_lang, self.lang_cb)
+        opt_l.addRow(self.lbl_apikey, self.f_key)
+        opt_l.addRow(self.btn_save)
+        opt_l.addRow(self.lbl_width, self.gen_w)
+        opt_l.addRow(self.lbl_height, self.gen_h)
         opt_l.addRow(self.feather_cb)
 
         layout.addWidget(self.tabs)
         self.setWidget(main_w)
         self.load_k()
+        self.apply_language()
+        self.status_lbl.setText(self.tr("status_ready"))
+
+    # --- i18n ---------------------------------------------------------------
+    def tr(self, key, **kw):
+        s = TR.get(self.lang, TR["en"]).get(key) or TR["en"].get(key, key)
+        return s.format(**kw) if kw else s
+
+    def _on_lang_changed(self, idx):
+        self.lang = LANGUAGES[idx][1]
+        Krita.instance().writeSetting("AIDiffusion", "lang", self.lang)
+        self.apply_language()
+
+    def apply_language(self):
+        self.tabs.setTabText(0, self.tr("tab_generate"))
+        self.tabs.setTabText(1, self.tr("tab_options"))
+        self.lbl_model.setText(self.tr("label_model"))
+        self.lbl_prompt.setText(self.tr("label_prompt"))
+        self.prompt_ed.setPlaceholderText(self.tr("prompt_placeholder"))
+        self.lbl_ref.setText(self.tr("label_reference"))
+        self.btn_ref.setText(self.tr("btn_ref_choose"))
+        self.btn_ref_clr.setText(self.tr("btn_ref_clear"))
+        self._update_ref_label()
+        self.btn_gen.setText(self.tr("btn_generate"))
+        self.btn_edit.setText(self.tr("btn_edit"))
+        self.btn_fill.setText(self.tr("btn_fill"))
+        self.lbl_lang.setText(self.tr("label_language"))
+        self.lbl_apikey.setText(self.tr("label_apikey"))
+        self.btn_save.setText(self.tr("btn_save"))
+        self.lbl_width.setText(self.tr("label_width"))
+        self.lbl_height.setText(self.tr("label_height"))
+        self.feather_cb.setText(self.tr("feather"))
+
+    def _update_ref_label(self):
+        if self.ref_b64:
+            self.ref_lbl.setText(self.tr("ref_set", name=self.ref_name,
+                                         w=self.ref_w, h=self.ref_h))
+        else:
+            self.ref_lbl.setText(self.tr("ref_none"))
 
     # --- Settings -----------------------------------------------------------
     def save_k(self):
         Krita.instance().writeSetting("AIDiffusion", "fk_vPRO", self.f_key.text().strip())
-        self.status_lbl.setText("Gespeichert.")
+        self.status_lbl.setText(self.tr("saved"))
 
     def load_k(self):
         self.f_key.setText(Krita.instance().readSetting("AIDiffusion", "fk_vPRO", ""))
 
     # --- Helpers ------------------------------------------------------------
-    def _warn(self, msg):
+    def _warn(self, key):
+        msg = self.tr(key)
         self.status_lbl.setText(msg)
         QMessageBox.warning(None, "AI API Diffusion", msg)
 
     def choose_ref(self):
         path, _ = QFileDialog.getOpenFileName(
-            None, "Referenzbild wählen", "",
-            "Bilder (*.png *.jpg *.jpeg *.webp *.bmp)")
+            None, self.tr("dlg_choose_ref"), "", self.tr("dlg_filter"))
         if not path:
             return
         img = QImage(path)
         if img.isNull():
-            return self._warn("Referenzbild konnte nicht geladen werden.")
-        # Auf MAX_EDGE begrenzen (Payload-Größe / Kosten)
+            return self._warn("warn_ref_load")
         if max(img.width(), img.height()) > MAX_EDGE:
-            img = img.scaled(MAX_EDGE, MAX_EDGE, Qt.KeepAspectRatio,
-                             Qt.SmoothTransformation)
+            img = img.scaled(MAX_EDGE, MAX_EDGE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         img = img.convertToFormat(QImage.Format_ARGB32)
         self.ref_b64 = self.qimage_to_b64(img)
-        name = path.replace("\\", "/").split("/")[-1]
-        self.ref_lbl.setText(f"Referenz: {name} ({img.width()}x{img.height()})")
+        self.ref_name = path.replace("\\", "/").split("/")[-1]
+        self.ref_w, self.ref_h = img.width(), img.height()
+        self._update_ref_label()
 
     def clear_ref(self):
         self.ref_b64 = None
-        self.ref_lbl.setText("Kein Referenzbild")
+        self.ref_name = None
+        self._update_ref_label()
 
     def _round32(self, v):
         return max(64, int(round(v / 32.0)) * 32)
 
     def _selection_crop(self, doc):
-        """Bounding-Box der Auswahl + Kontext-Rand, geclamped auf Dokument."""
         sel = doc.selection()
         bx, by, bw, bh = sel.x(), sel.y(), sel.width(), sel.height()
         if bw <= 0 or bh <= 0:
             return None
-        pad_x = int(bw * CONTEXT_PAD)
-        pad_y = int(bh * CONTEXT_PAD)
-        x0 = max(0, bx - pad_x)
-        y0 = max(0, by - pad_y)
-        x1 = min(doc.width(), bx + bw + pad_x)
-        y1 = min(doc.height(), by + bh + pad_y)
+        pad_x, pad_y = int(bw * CONTEXT_PAD), int(bh * CONTEXT_PAD)
+        x0 = max(0, bx - pad_x); y0 = max(0, by - pad_y)
+        x1 = min(doc.width(), bx + bw + pad_x); y1 = min(doc.height(), by + bh + pad_y)
         return x0, y0, x1 - x0, y1 - y0
 
     def _read_region(self, doc, x, y, w, h):
-        """Sichtbares Compositing als QImage. Document.projection() liefert
-        direkt ein QImage der Region (bereits korrekte Farben)."""
         img = doc.projection(x, y, w, h)
         return img.convertToFormat(QImage.Format_ARGB32)
 
     def _read_mask(self, doc, x, y, w, h):
-        """Auswahl als Graustufen-QImage (255 = ausgewählt = inpaint) für die API."""
         raw = doc.selection().pixelData(x, y, w, h)
-        img = QImage(raw, w, h, w, QImage.Format_Grayscale8)
-        return img.copy()
+        return QImage(raw, w, h, w, QImage.Format_Grayscale8).copy()
 
     def _read_alpha(self, doc, x, y, w, h):
-        """Auswahl direkt als Alpha8 (Wert == Alpha) fürs Zurück-Kompositing."""
         raw = doc.selection().pixelData(x, y, w, h)
-        img = QImage(raw, w, h, w, QImage.Format_Alpha8)
-        return img.copy()
+        return QImage(raw, w, h, w, QImage.Format_Alpha8).copy()
 
     def _scaled_target(self, w, h):
-        # Obergrenze (Kosten/Speed) ...
         scale = min(1.0, float(MAX_EDGE) / max(w, h))
-        # ... und Untergrenze: BFL verlangt mind. 256 px pro Kante
         if min(w, h) * scale < 256:
             scale = 256.0 / min(w, h)
         return max(256, self._round32(w * scale)), max(256, self._round32(h * scale))
@@ -238,63 +414,60 @@ class AIDiffusionDocker(DockWidget):
         doc = Krita.instance().activeDocument()
         key = self.f_key.text().strip()
         if not doc:
-            return self._warn("Kein aktives Dokument.")
+            return self._warn("warn_no_doc")
         if not key:
-            return self._warn("Bitte zuerst einen API Key unter 'Optionen' speichern.")
+            return self._warn("warn_no_key")
         if self.worker and self.worker.isRunning():
-            return self._warn("Es läuft bereits eine Anfrage.")
+            return self._warn("warn_running")
 
         prompt = self.prompt_ed.toPlainText().strip()
         model = self.model_cb.currentText()
 
         if mode == "generate":
             if not prompt:
-                return self._warn("Bitte einen Prompt eingeben.")
+                return self._warn("warn_no_prompt")
             payload = {"prompt": prompt,
                        "width": self._round32(self.gen_w.value()),
                        "height": self._round32(self.gen_h.value()),
                        "output_format": "png"}
-            if self.ref_b64:  # FLUX.2: Referenz als Bildvorlage
+            if self.ref_b64:
                 payload["input_image"] = self.ref_b64
-            self._launch(model, payload, None, "Generiere Bild ...")
+            self._launch(model, payload, None, "status_generating")
             return
 
-        # edit / fill benötigen eine Auswahl
         crop = self._selection_crop(doc)
         if crop is None:
-            return self._warn("Bitte zuerst einen Bereich auswählen (Auswahlwerkzeug).")
+            return self._warn("warn_no_selection")
         x, y, w, h = crop
         tw, th = self._scaled_target(w, h)
 
         img = self._read_region(doc, x, y, w, h).scaled(
             tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         img_b64 = self.qimage_to_b64(img)
-
         crop_info = {"x": x, "y": y, "w": w, "h": h}
 
         if mode == "edit":
             if not prompt:
-                return self._warn("Für Kontext-Inpaint bitte eine Edit-Anweisung eingeben.")
-            # FLUX.2: kontextbasiert, KEINE Maske -> input_image + prompt
-            # Optionale Referenz (z.B. Objekt/Stil) als input_image_2
+                return self._warn("warn_no_prompt_edit")
             payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
             if self.ref_b64:
                 payload["input_image_2"] = self.ref_b64
-            self._launch(model, payload, crop_info, "Kontext-Inpaint (FLUX.2) ...")
+            self._launch(model, payload, crop_info, "status_edit")
 
         elif mode == "fill":
-            # FLUX.1 Fill: image + mask (weiß = inpaint)
             mask = self._read_mask(doc, x, y, w, h).scaled(
                 tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             mask_b64 = self.qimage_to_b64(mask)
             payload = {"prompt": prompt, "image": img_b64, "mask": mask_b64,
                        "output_format": "png"}
-            self._launch(FILL_ENDPOINT, payload, crop_info, "Masken-Inpaint (FLUX.1 Fill) ...")
+            self._launch(FILL_ENDPOINT, payload, crop_info, "status_fill")
 
-    def _launch(self, endpoint, payload, crop_info, status):
-        self.status_lbl.setText(status)
+    def _launch(self, endpoint, payload, crop_info, status_key):
+        self.status_lbl.setText(self.tr(status_key))
         self._set_busy(True)
-        self.worker = APIWorker(endpoint, payload, self.f_key.text().strip(), crop_info)
+        self.worker = APIWorker(endpoint, payload, self.f_key.text().strip(), crop_info,
+                                status_wait=self.tr("status_waiting"),
+                                status_prefix=self.tr("status_prefix"))
         self.worker.status.connect(self.status_lbl.setText)
         self.worker.finished.connect(self.handle_res)
         self.worker.error.connect(self.handle_err)
@@ -307,10 +480,10 @@ class AIDiffusionDocker(DockWidget):
     # --- Ergebnis -----------------------------------------------------------
     def handle_err(self, msg):
         self._set_busy(False)
-        # Server spiegelt teils die (riesige) Base64-Eingabe zurück -> kürzen
         if len(msg) > 400:
-            msg = msg[:400] + " ... [gekürzt]"
-        self._warn("Fehler: " + msg)
+            msg = msg[:400] + " ... [truncated]"
+        self.status_lbl.setText(self.tr("err_prefix") + msg)
+        QMessageBox.warning(None, "AI API Diffusion", self.tr("err_prefix") + msg)
 
     def handle_res(self, res):
         self._set_busy(False)
@@ -323,21 +496,17 @@ class AIDiffusionDocker(DockWidget):
         crop = res["crop"]
 
         if crop is None:
-            # Neues Bild -> volle Ebene
             layer = doc.createNode("AI Generation", "paintLayer")
             doc.rootNode().addChildNode(layer, None)
-            rgba = result  # ARGB32-Bytes == BGRA-Layout, passt zu Krita
-            layer.setPixelData(rgba.bits().asstring(rgba.width() * rgba.height() * 4),
-                               0, 0, rgba.width(), rgba.height())
+            layer.setPixelData(result.bits().asstring(result.width() * result.height() * 4),
+                               0, 0, result.width(), result.height())
             doc.refreshProjection()
-            self.status_lbl.setText("Fertig – neues Bild eingefügt.")
+            self.status_lbl.setText(self.tr("done_generate"))
             return
 
         x, y, w, h = crop["x"], crop["y"], crop["w"], crop["h"]
-        # Ergebnis auf native Crop-Größe zurückskalieren
         result = result.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
-        # Alpha aus der Auswahl (nur innerhalb der Maske übernehmen)
         alpha = self._read_alpha(doc, x, y, w, h)
         if self.feather_cb.isChecked():
             d = max(2, min(w, h) // FEATHER_DIV)
@@ -357,7 +526,7 @@ class AIDiffusionDocker(DockWidget):
         doc.rootNode().addChildNode(layer, None)
         layer.setPixelData(composite.bits().asstring(w * h * 4), x, y, w, h)
         doc.refreshProjection()
-        self.status_lbl.setText("Fertig – Inpaint als neue Ebene eingefügt.")
+        self.status_lbl.setText(self.tr("done_inpaint"))
 
     def canvasChanged(self, canvas):
         pass
