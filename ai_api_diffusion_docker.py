@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal, QByteArray, QBuffer, QIODevice
 from PyQt5.QtGui import QImage, QPainter
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QComboBox, QPlainTextEdit, QMessageBox,
-                             QTabWidget, QFormLayout, QSpinBox, QCheckBox)
+                             QTabWidget, QFormLayout, QSpinBox, QCheckBox, QFileDialog)
 from krita import DockWidget, Krita
 
 # ---------------------------------------------------------------------------
@@ -98,6 +98,19 @@ class AIDiffusionDocker(DockWidget):
         self.status_lbl = QLabel("Bereit")
         self.status_lbl.setWordWrap(True)
 
+        # --- Referenzbild (optional, nur Kontext-Inpaint / Generieren) ------
+        self.ref_b64 = None
+        self.ref_lbl = QLabel("Kein Referenzbild")
+        self.ref_lbl.setWordWrap(True)
+        self.btn_ref = QPushButton("Referenzbild wählen ...")
+        self.btn_ref_clr = QPushButton("Entfernen")
+        self.btn_ref.clicked.connect(self.choose_ref)
+        self.btn_ref_clr.clicked.connect(self.clear_ref)
+        ref_row = QHBoxLayout()
+        ref_row.addWidget(self.btn_ref)
+        ref_row.addWidget(self.btn_ref_clr)
+        ref_box = QWidget(); ref_box.setLayout(ref_row)
+
         self.btn_gen = QPushButton("Neues Bild (Text -> Bild)")
         self.btn_edit = QPushButton("Kontext-Inpaint (FLUX.2)")
         self.btn_fill = QPushButton("Masken-Inpaint (FLUX.1 Fill)")
@@ -107,6 +120,8 @@ class AIDiffusionDocker(DockWidget):
 
         for w in [QLabel("Modell (Generieren / Kontext-Inpaint):"), self.model_cb,
                   QLabel("Prompt:"), self.prompt_ed,
+                  QLabel("Referenz (optional, z.B. Objekt zum Einfügen):"),
+                  ref_box, self.ref_lbl,
                   self.btn_gen, self.btn_edit, self.btn_fill, self.status_lbl]:
             gen_l.addWidget(w)
         gen_l.addStretch()
@@ -145,6 +160,28 @@ class AIDiffusionDocker(DockWidget):
     def _warn(self, msg):
         self.status_lbl.setText(msg)
         QMessageBox.warning(None, "AI API Diffusion", msg)
+
+    def choose_ref(self):
+        path, _ = QFileDialog.getOpenFileName(
+            None, "Referenzbild wählen", "",
+            "Bilder (*.png *.jpg *.jpeg *.webp *.bmp)")
+        if not path:
+            return
+        img = QImage(path)
+        if img.isNull():
+            return self._warn("Referenzbild konnte nicht geladen werden.")
+        # Auf MAX_EDGE begrenzen (Payload-Größe / Kosten)
+        if max(img.width(), img.height()) > MAX_EDGE:
+            img = img.scaled(MAX_EDGE, MAX_EDGE, Qt.KeepAspectRatio,
+                             Qt.SmoothTransformation)
+        img = img.convertToFormat(QImage.Format_ARGB32)
+        self.ref_b64 = self.qimage_to_b64(img)
+        name = path.replace("\\", "/").split("/")[-1]
+        self.ref_lbl.setText(f"Referenz: {name} ({img.width()}x{img.height()})")
+
+    def clear_ref(self):
+        self.ref_b64 = None
+        self.ref_lbl.setText("Kein Referenzbild")
 
     def _round32(self, v):
         return max(64, int(round(v / 32.0)) * 32)
@@ -217,6 +254,8 @@ class AIDiffusionDocker(DockWidget):
                        "width": self._round32(self.gen_w.value()),
                        "height": self._round32(self.gen_h.value()),
                        "output_format": "png"}
+            if self.ref_b64:  # FLUX.2: Referenz als Bildvorlage
+                payload["input_image"] = self.ref_b64
             self._launch(model, payload, None, "Generiere Bild ...")
             return
 
@@ -237,7 +276,10 @@ class AIDiffusionDocker(DockWidget):
             if not prompt:
                 return self._warn("Für Kontext-Inpaint bitte eine Edit-Anweisung eingeben.")
             # FLUX.2: kontextbasiert, KEINE Maske -> input_image + prompt
+            # Optionale Referenz (z.B. Objekt/Stil) als input_image_2
             payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
+            if self.ref_b64:
+                payload["input_image_2"] = self.ref_b64
             self._launch(model, payload, crop_info, "Kontext-Inpaint (FLUX.2) ...")
 
         elif mode == "fill":
