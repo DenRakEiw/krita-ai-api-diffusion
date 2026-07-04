@@ -23,6 +23,8 @@ optional reference image. The interface is **multilingual**
   via `image` + `mask` (`flux-pro-1.0-fill`). FLUX only.
 - **Reference image (optional)** — an additional image used as a template, e.g.
   a specific pair of sunglasses that a selected cat should wear.
+- **Batch / variants** — generate up to 8 results per click, each with its own
+  seed, collected into an *AI Batch* layer group so you can pick the best.
 - **Seed control** — random seed by default; lock a seed (or roll a new one) to
   reproduce a result or make controlled variations.
 - **Aspect-ratio presets** — 1:1, 3:2, 16:9, 4:3, … (or custom width/height).

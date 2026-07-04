@@ -72,6 +72,7 @@ TR = {
         "btn_cancel": "Cancel", "status_cancelled": "Cancelled.",
         "label_aspect": "Aspect ratio (new image):", "label_seed": "Seed:",
         "seed_random": "Random seed", "btn_dice": "New seed",
+        "label_batch": "Variants per run:", "status_batch_done": "Done - {n} variants.",
         "label_gkey": "Google AI Studio API Key:",
         "warn_no_gkey": "Please save a Google AI Studio API key under 'Options' first.",
         "warn_fill_flux_only": "Mask Inpaint requires a FLUX model. Nano Banana supports "
@@ -111,6 +112,7 @@ TR = {
         "btn_cancel": "Abbrechen", "status_cancelled": "Abgebrochen.",
         "label_aspect": "Seitenverhältnis (Neues Bild):", "label_seed": "Seed:",
         "seed_random": "Zufalls-Seed", "btn_dice": "Neuer Seed",
+        "label_batch": "Varianten pro Lauf:", "status_batch_done": "Fertig - {n} Varianten.",
         "label_gkey": "Google AI Studio API Key:",
         "warn_no_gkey": "Bitte zuerst einen Google AI Studio API Key unter 'Optionen' speichern.",
         "warn_fill_flux_only": "Masken-Inpaint benötigt ein FLUX-Modell. Nano Banana kann "
@@ -149,6 +151,7 @@ TR = {
         "btn_cancel": "取消", "status_cancelled": "已取消。",
         "label_aspect": "宽高比（新图像）：", "label_seed": "种子：",
         "seed_random": "随机种子", "btn_dice": "新种子",
+        "label_batch": "每次生成数量：", "status_batch_done": "完成 - {n} 个变体。",
         "label_gkey": "Google AI Studio API 密钥：",
         "warn_no_gkey": "请先在 '选项' 中保存 Google AI Studio API 密钥。",
         "warn_fill_flux_only": "蒙版修复需要 FLUX 模型。Nano Banana 支持生成和上下文修复。",
@@ -187,6 +190,7 @@ TR = {
         "btn_cancel": "ยกเลิก", "status_cancelled": "ยกเลิกแล้ว",
         "label_aspect": "อัตราส่วนภาพ (ภาพใหม่):", "label_seed": "ซีด:",
         "seed_random": "ซีดสุ่ม", "btn_dice": "ซีดใหม่",
+        "label_batch": "จำนวนต่อรอบ:", "status_batch_done": "เสร็จสิ้น - {n} แบบ",
         "label_gkey": "คีย์ API ของ Google AI Studio:",
         "warn_no_gkey": "กรุณาบันทึกคีย์ API ของ Google AI Studio ใน 'ตัวเลือก' ก่อน",
         "warn_fill_flux_only": "อินเพนต์ด้วยมาสก์ต้องใช้โมเดล FLUX. Nano Banana รองรับ "
@@ -324,6 +328,7 @@ class AIDiffusionDocker(DockWidget):
         super().__init__()
         self.worker = None
         self.busy = False
+        self._batch = None   # aktiver Batch-Zustand (siehe _begin)
         self._threads = []   # hält abgebrochene, noch laufende Worker am Leben (Anti-GC)
         self.ref_b64 = None
         self.ref_name = None
@@ -418,6 +423,8 @@ class AIDiffusionDocker(DockWidget):
         seed_row.addWidget(self.btn_dice)
         seed_box = QWidget(); seed_box.setLayout(seed_row)
 
+        self.batch_val = QSpinBox(); self.batch_val.setRange(1, 8); self.batch_val.setValue(1)
+
         self.lbl_lang = QLabel()
         self.lbl_apikey = QLabel()
         self.lbl_gkey = QLabel()
@@ -425,6 +432,7 @@ class AIDiffusionDocker(DockWidget):
         self.lbl_width = QLabel()
         self.lbl_height = QLabel()
         self.lbl_seed = QLabel()
+        self.lbl_batch = QLabel()
         opt_l.addRow(self.lbl_lang, self.lang_cb)
         opt_l.addRow(self.lbl_apikey, self.f_key)
         opt_l.addRow(self.lbl_gkey, self.g_key)
@@ -433,6 +441,7 @@ class AIDiffusionDocker(DockWidget):
         opt_l.addRow(self.lbl_width, self.gen_w)
         opt_l.addRow(self.lbl_height, self.gen_h)
         opt_l.addRow(self.lbl_seed, seed_box)
+        opt_l.addRow(self.lbl_batch, self.batch_val)
         opt_l.addRow(self.feather_cb)
 
         layout.addWidget(self.tabs)
@@ -476,6 +485,7 @@ class AIDiffusionDocker(DockWidget):
         self.lbl_seed.setText(self.tr("label_seed"))
         self.seed_random.setText(self.tr("seed_random"))
         self.btn_dice.setText(self.tr("btn_dice"))
+        self.lbl_batch.setText(self.tr("label_batch"))
         self.feather_cb.setText(self.tr("feather"))
 
     def _update_ref_label(self):
@@ -495,17 +505,10 @@ class AIDiffusionDocker(DockWidget):
         self.seed_random.setChecked(False)
         self.seed_val.setValue(random.randint(0, 2147483647))
 
-    def _current_seed(self):
-        """Liefert den zu verwendenden Seed und zeigt ihn an (auch bei Zufall)."""
-        if self.seed_random.isChecked():
-            s = random.randint(0, 2147483647)
-            self.seed_val.setValue(s)  # sichtbar machen -> kann gelockt werden
-            return s
-        return self.seed_val.value()
-
     def cancel_req(self):
         if self.busy and self.worker:
             self.worker.cancel()
+        self._batch = None          # verhindert weitere Varianten
         self.busy = False
         self._set_busy(False)
         self.status_lbl.setText(self.tr("status_cancelled"))
@@ -606,23 +609,20 @@ class AIDiffusionDocker(DockWidget):
         elif not self.f_key.text().strip():
             return self._warn("warn_no_key")
 
-        seed = self._current_seed()
-
         if mode == "generate":
             if not prompt:
                 return self._warn("warn_no_prompt")
             if provider == "google":
                 imgs = [self.ref_b64] if self.ref_b64 else []
-                self._launch(model_id, {"prompt": prompt, "images": imgs, "seed": seed},
-                             None, "status_generating", provider)
+                payload = {"prompt": prompt, "images": imgs}
             else:
                 payload = {"prompt": prompt,
                            "width": self._round32(self.gen_w.value()),
                            "height": self._round32(self.gen_h.value()),
-                           "seed": seed, "output_format": "png"}
+                           "output_format": "png"}
                 if self.ref_b64:
                     payload["input_image"] = self.ref_b64
-                self._launch(model_id, payload, None, "status_generating", provider)
+            self._begin(model_id, payload, None, "status_generating", provider)
             return
 
         crop = self._selection_crop(doc)
@@ -647,14 +647,12 @@ class AIDiffusionDocker(DockWidget):
                 return self._warn("warn_no_prompt_edit")
             if provider == "google":
                 imgs = [img_b64] + ([self.ref_b64] if self.ref_b64 else [])
-                self._launch(model_id, {"prompt": prompt, "images": imgs, "seed": seed},
-                             crop_info, "status_edit", provider)
+                payload = {"prompt": prompt, "images": imgs}
             else:
-                payload = {"prompt": prompt, "input_image": img_b64,
-                           "seed": seed, "output_format": "png"}
+                payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
                 if self.ref_b64:
                     payload["input_image_2"] = self.ref_b64
-                self._launch(model_id, payload, crop_info, "status_edit", provider)
+            self._begin(model_id, payload, crop_info, "status_edit", provider)
 
         elif mode == "fill":
             if provider == "google":
@@ -663,15 +661,43 @@ class AIDiffusionDocker(DockWidget):
                 tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             mask_b64 = self.qimage_to_b64(mask)
             payload = {"prompt": prompt, "image": img_b64, "mask": mask_b64,
-                       "seed": seed, "output_format": "png"}
-            self._launch(FILL_ENDPOINT, payload, crop_info, "status_fill", "bfl")
+                       "output_format": "png"}
+            self._begin(FILL_ENDPOINT, payload, crop_info, "status_fill", "bfl")
 
-    def _launch(self, endpoint, payload, crop_info, status_key, provider="bfl"):
-        self.status_lbl.setText(self.tr(status_key))
+    def _begin(self, endpoint, payload, crop_info, status_key, provider="bfl"):
+        """Startet einen Batch von N Varianten (sequenziell), jede mit eigenem Seed."""
+        count = self.batch_val.value()
+        if self.seed_random.isChecked():
+            seeds = [random.randint(0, 2147483647) for _ in range(count)]
+        else:
+            base = self.seed_val.value()
+            seeds = [(base + i) % 2147483648 for i in range(count)]
+        self.seed_val.setValue(seeds[0])  # ersten Seed sichtbar machen
+
+        group = None
+        if count > 1:
+            doc = Krita.instance().activeDocument()
+            group = doc.createNode("AI Batch", "grouplayer")
+            doc.rootNode().addChildNode(group, None)
+
+        self._batch = {"endpoint": endpoint, "payload": payload, "crop_info": crop_info,
+                       "status_key": status_key, "provider": provider,
+                       "seeds": seeds, "total": count, "i": 0, "group": group}
         self.busy = True
         self._set_busy(True)
+        self._launch_variant()
+
+    def _launch_variant(self):
+        b = self._batch
+        payload = dict(b["payload"])
+        payload["seed"] = b["seeds"][b["i"]]
+        status = self.tr(b["status_key"])
+        if b["total"] > 1:
+            status += "  ({}/{})".format(b["i"] + 1, b["total"])
+        self.status_lbl.setText(status)
+        provider = b["provider"]
         api_key = self.g_key.text().strip() if provider == "google" else self.f_key.text().strip()
-        self.worker = APIWorker(endpoint, payload, api_key, crop_info,
+        self.worker = APIWorker(b["endpoint"], payload, api_key, b["crop_info"],
                                 status_wait=self.tr("status_waiting"),
                                 status_prefix=self.tr("status_prefix"),
                                 provider=provider)
@@ -698,6 +724,7 @@ class AIDiffusionDocker(DockWidget):
 
     # --- Ergebnis -----------------------------------------------------------
     def handle_err(self, msg):
+        self._batch = None
         self.busy = False
         self._set_busy(False)
         if len(msg) > 400:
@@ -706,57 +733,78 @@ class AIDiffusionDocker(DockWidget):
         QMessageBox.warning(None, "AI API Diffusion", self.tr("err_prefix") + msg)
 
     def handle_res(self, res):
-        self.busy = False
-        self._set_busy(False)
         doc = Krita.instance().activeDocument()
         if not doc:
+            self._batch = None
+            self.busy = False
+            self._set_busy(False)
             return
+
+        b = self._batch
+        parent = (b["group"] if b else None) or doc.rootNode()
+        # Variantenname mit Seed (nur bei Batch > 1)
+        if b and b["total"] > 1:
+            suffix = " {} (seed {})".format(b["i"] + 1, b["seeds"][b["i"]])
+        else:
+            suffix = ""
+
         result = QImage()
         result.loadFromData(res["image_data"])
         result = result.convertToFormat(QImage.Format_ARGB32)
         crop = res["crop"]
 
         if crop is None:
-            layer = doc.createNode("AI Generation", "paintLayer")
-            doc.rootNode().addChildNode(layer, None)
+            layer = doc.createNode("AI Generation" + suffix, "paintLayer")
+            parent.addChildNode(layer, None)
             layer.setPixelData(result.bits().asstring(result.width() * result.height() * 4),
                                0, 0, result.width(), result.height())
-            doc.refreshProjection()
             self.status_lbl.setText(self.tr("done_generate"))
-            return
-
-        x, y, w, h = crop["x"], crop["y"], crop["w"], crop["h"]
-        result = result.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-
-        # Voll-Bild-Edit (keine Auswahl): Ergebnis als komplette Ebene setzen
-        if crop.get("full"):
-            layer = doc.createNode("AI Edit", "paintLayer")
-            doc.rootNode().addChildNode(layer, None)
-            layer.setPixelData(result.bits().asstring(w * h * 4), x, y, w, h)
-            doc.refreshProjection()
+        else:
+            x, y, w, h = crop["x"], crop["y"], crop["w"], crop["h"]
+            result = result.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            if crop.get("full"):
+                # Voll-Bild-Edit (keine Auswahl): Ergebnis als komplette Ebene
+                layer = doc.createNode("AI Edit" + suffix, "paintLayer")
+                parent.addChildNode(layer, None)
+                layer.setPixelData(result.bits().asstring(w * h * 4), x, y, w, h)
+            else:
+                alpha = self._read_alpha(doc, x, y, w, h)
+                if self.feather_cb.isChecked():
+                    d = max(2, min(w, h) // FEATHER_DIV)
+                    small = alpha.scaled(max(1, w // d), max(1, h // d),
+                                         Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    alpha = small.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                composite = QImage(w, h, QImage.Format_ARGB32)
+                composite.fill(Qt.transparent)
+                p = QPainter(composite)
+                p.drawImage(0, 0, result)
+                p.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+                p.drawImage(0, 0, alpha)
+                p.end()
+                layer = doc.createNode("AI Inpaint" + suffix, "paintLayer")
+                parent.addChildNode(layer, None)
+                layer.setPixelData(composite.bits().asstring(w * h * 4), x, y, w, h)
             self.status_lbl.setText(self.tr("done_inpaint"))
-            return
 
-        alpha = self._read_alpha(doc, x, y, w, h)
-        if self.feather_cb.isChecked():
-            d = max(2, min(w, h) // FEATHER_DIV)
-            small = alpha.scaled(max(1, w // d), max(1, h // d),
-                                 Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-            alpha = small.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-
-        composite = QImage(w, h, QImage.Format_ARGB32)
-        composite.fill(Qt.transparent)
-        p = QPainter(composite)
-        p.drawImage(0, 0, result)
-        p.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-        p.drawImage(0, 0, alpha)
-        p.end()
-
-        layer = doc.createNode("AI Inpaint", "paintLayer")
-        doc.rootNode().addChildNode(layer, None)
-        layer.setPixelData(composite.bits().asstring(w * h * 4), x, y, w, h)
         doc.refreshProjection()
-        self.status_lbl.setText(self.tr("done_inpaint"))
+        self._batch_next()
+
+    def _batch_next(self):
+        b = self._batch
+        if b is None:
+            self.busy = False
+            self._set_busy(False)
+            return
+        b["i"] += 1
+        if b["i"] < b["total"]:
+            self._launch_variant()          # nächste Variante (busy bleibt True)
+            return
+        n = b["total"]
+        self._batch = None
+        self.busy = False
+        self._set_busy(False)
+        if n > 1:
+            self.status_lbl.setText(self.tr("status_batch_done", n=n))
 
     def canvasChanged(self, canvas):
         pass
