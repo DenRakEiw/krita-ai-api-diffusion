@@ -4,20 +4,22 @@
 
 
 A Krita plugin that brings the **FLUX** models from
-[Black Forest Labs (BFL)](https://bfl.ai) **and Google's Nano Banana 2**
-([Gemini image models](https://ai.google.dev)) directly into Krita — for
+[Black Forest Labs (BFL)](https://bfl.ai), **Google's Nano Banana 2**
+([Gemini image models](https://ai.google.dev)) **and OpenAI's GPT Image 2.5
+Sunburst** (via [OpenRouter](https://openrouter.ai)) directly into Krita — for
 text-to-image, context-based inpainting and mask-based inpainting, with an
 optional reference image. The interface is **multilingual**
 (English / Deutsch / 中文 / ไทย).
 
 ## Features
 
-- **Two providers side by side** — pick a **BFL FLUX** model or a
-  **Google Nano Banana 2** model from the same dropdown; the plugin routes to
-  the right API automatically.
+- **Three providers side by side** — pick a **BFL FLUX** model, a
+  **Google Nano Banana 2** model or **GPT Image 2.5 Sunburst (OpenRouter)**
+  from the same dropdown; the plugin routes to the right API automatically.
 - **New image (text → image)** — generate an image from a prompt.
 - **Context Inpaint** — edits the current selection context-based
-  (FLUX.2 `input_image` or Gemini image editing, no mask needed). Great for
+  (FLUX.2 `input_image`, Gemini image editing or OpenRouter `input_references`,
+  no mask needed). Great for
   instructions like “remove the person” or “replace the sky”.
 - **Mask Inpaint (FLUX.1 Fill)** — precise filling exactly inside the selection
   via `image` + `mask` (`flux-pro-1.0-fill`). FLUX only.
@@ -39,7 +41,9 @@ optional reference image. The interface is **multilingual**
 - For FLUX: a **BFL API key** from <https://api.bfl.ai> (the BFL dashboard).
 - For Nano Banana 2: a **Google AI Studio API key** from
   <https://aistudio.google.com/apikey>.
-- You only need the key(s) for the provider(s) you actually use. Both are paid
+- For GPT Image 2.5 Sunburst: an **OpenRouter API key** from
+  <https://openrouter.ai/settings/keys>.
+- You only need the key(s) for the provider(s) you actually use. All are paid
   / metered services.
 
 ## Installation
@@ -107,8 +111,9 @@ continue with steps 3–5.
 
 1. In the docker, switch to the **Options** tab.
 2. Pick your **Language** (English / Deutsch / 中文 / ไทย) — applied instantly.
-3. Enter your **API Key (BFL)** and click **Save**.
-   (The key and language are stored in Krita’s settings.)
+3. Enter the API key(s) you need — **API Key (BFL)**, **Google AI Studio API
+   Key** and/or **OpenRouter API Key** — and click **Save**.
+   (The keys and language are stored in Krita’s settings.)
 
 ## Usage
 
@@ -143,13 +148,17 @@ continue with steps 3–5.
 | `flux-2-max` | `flux-2-max` | Highest quality, multi-image |
 | `flux-2-flex` | `flux-2-flex` | Strong at typography/text |
 | `flux-2-klein-9b` | `flux-2-klein-9b` | Fast, lightweight (no reference image) |
-| Mask Inpaint | `flux-pro-1.0-fill` | Mask-based filling |
+| `nano-banana-2 (Gemini 3.1 Flash)` | `gemini-3.1-flash-image` | Google, Generate + Context Inpaint |
+| `nano-banana-pro (Gemini 3 Pro)` | `gemini-3-pro-image` | Google, Generate + Context Inpaint |
+| `gpt-image-2.5-sunburst (OpenRouter)` | `openai/gpt-image-2.5-sunburst` | OpenAI via OpenRouter Images API, Generate + Context Inpaint (no mask inpaint) |
+| Mask Inpaint | `flux-pro-1.0-fill` | Mask-based filling (FLUX only) |
 
 ## Tips & troubleshooting
 
 - **HTTP 422 “Image dimensions must be at least 256x256”** — selection too small.
   It is upscaled automatically; still, select a larger area for sharp results.
-- **HTTP 402 / “insufficient credits”** — no credits on the BFL account.
+- **HTTP 402 / “insufficient credits”** — no credits on the BFL / OpenRouter
+  account.
 - **HTTP 401 / 403** — API key wrong or not set (Options tab).
 - **Payload too large / timeout** with reference images — lower `MAX_EDGE` in
   `ai_api_diffusion_docker.py` or shrink the reference image beforehand.
