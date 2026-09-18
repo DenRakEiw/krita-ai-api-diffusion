@@ -11,12 +11,17 @@ from krita import DockWidget, Krita
 #   FLUX.2 (kontextbasiertes Editing)  -> input_image + prompt, KEINE mask
 #   FLUX.1 Fill (maskenbasiert)        -> image + mask + prompt
 # ---------------------------------------------------------------------------
-# Modelle mit Anbieter-Zuordnung. provider: "bfl" (Black Forest Labs) | "google"
+# Modelle mit Anbieter-Zuordnung.
+# provider: "bfl" (Black Forest Labs) | "flux3" (interner FLUX.3-Host) | "google"
 MODELS = [
     {"label": "flux-2-pro", "provider": "bfl", "id": "flux-2-pro"},
     {"label": "flux-2-max", "provider": "bfl", "id": "flux-2-max"},
     {"label": "flux-2-flex", "provider": "bfl", "id": "flux-2-flex"},
     {"label": "flux-2-klein-9b", "provider": "bfl", "id": "flux-2-klein-9b"},
+    {"label": "flux-3-image", "provider": "bfl", "id": "flux-3-image",
+     "flux3_schema": True},
+    {"label": "flux-3-image (internal, pre-release)", "provider": "flux3",
+     "id": "flux-3-image-internal", "flux3_schema": True},
     {"label": "nano-banana-2 (Gemini 3.1 Flash)", "provider": "google",
      "id": "gemini-3.1-flash-image"},
     {"label": "nano-banana-pro (Gemini 3 Pro)", "provider": "google",
@@ -24,6 +29,9 @@ MODELS = [
 ]
 FILL_ENDPOINT = "flux-pro-1.0-fill"
 API_BASE = "https://api.bfl.ai/v1/"
+# Interner FLUX.3-Host (pre-release, extra=forbid-Schema):
+# Submit -> {"id": ...}, Poll ueber GET {FLUX3_BASE}/get_result_debug?id=...
+FLUX3_BASE = "https://review-5063.ice.bfl.ai/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 # Seitenverhältnis-Presets (~1 MP, Kanten Vielfache von 64) für "Neues Bild"
@@ -74,7 +82,9 @@ TR = {
         "seed_random": "Random seed", "btn_dice": "New seed",
         "label_batch": "Variants per run:", "status_batch_done": "Done - {n} variants.",
         "label_gkey": "Google AI Studio API Key:",
+        "label_f3key": "FLUX.3 API Key (Review):",
         "warn_no_gkey": "Please save a Google AI Studio API key under 'Options' first.",
+        "warn_no_f3key": "Please save a FLUX.3 review API key under 'Options' first.",
         "warn_fill_flux_only": "Mask Inpaint requires a FLUX model. Nano Banana supports "
                                "Generate and Context Inpaint.",
         "warn_no_doc": "No active document.",
@@ -114,7 +124,9 @@ TR = {
         "seed_random": "Zufalls-Seed", "btn_dice": "Neuer Seed",
         "label_batch": "Varianten pro Lauf:", "status_batch_done": "Fertig - {n} Varianten.",
         "label_gkey": "Google AI Studio API Key:",
+        "label_f3key": "FLUX.3 API Key (Review):",
         "warn_no_gkey": "Bitte zuerst einen Google AI Studio API Key unter 'Optionen' speichern.",
+        "warn_no_f3key": "Bitte zuerst einen FLUX.3 Review API Key unter 'Optionen' speichern.",
         "warn_fill_flux_only": "Masken-Inpaint benötigt ein FLUX-Modell. Nano Banana kann "
                                "Generieren und Kontext-Inpaint.",
         "warn_no_doc": "Kein aktives Dokument.",
@@ -153,7 +165,9 @@ TR = {
         "seed_random": "随机种子", "btn_dice": "新种子",
         "label_batch": "每次生成数量：", "status_batch_done": "完成 - {n} 个变体。",
         "label_gkey": "Google AI Studio API 密钥：",
+        "label_f3key": "FLUX.3 API 密钥（Review）：",
         "warn_no_gkey": "请先在 '选项' 中保存 Google AI Studio API 密钥。",
+        "warn_no_f3key": "请先在 '选项' 中保存 FLUX.3 Review API 密钥。",
         "warn_fill_flux_only": "蒙版修复需要 FLUX 模型。Nano Banana 支持生成和上下文修复。",
         "warn_no_doc": "没有活动文档。",
         "warn_no_key": "请先在 '选项' 中保存 API 密钥。",
@@ -192,7 +206,9 @@ TR = {
         "seed_random": "ซีดสุ่ม", "btn_dice": "ซีดใหม่",
         "label_batch": "จำนวนต่อรอบ:", "status_batch_done": "เสร็จสิ้น - {n} แบบ",
         "label_gkey": "คีย์ API ของ Google AI Studio:",
+        "label_f3key": "คีย์ API FLUX.3 (Review):",
         "warn_no_gkey": "กรุณาบันทึกคีย์ API ของ Google AI Studio ใน 'ตัวเลือก' ก่อน",
+        "warn_no_f3key": "กรุณาบันทึกคีย์ API FLUX.3 Review ใน 'ตัวเลือก' ก่อน",
         "warn_fill_flux_only": "อินเพนต์ด้วยมาสก์ต้องใช้โมเดล FLUX. Nano Banana รองรับ "
                                "การสร้างและอินเพนต์ตามบริบท",
         "warn_no_doc": "ไม่มีเอกสารที่ใช้งานอยู่",
@@ -236,6 +252,8 @@ class APIWorker(QThread):
                 return
             if self.provider == "google":
                 self._run_google()
+            elif self.provider == "flux3":
+                self._run_flux3()
             else:
                 self._run_bfl()
         except Exception as e:
@@ -277,6 +295,52 @@ class APIWorker(QThread):
         reason = cands[0].get("finishReason", "")
         texts = [p.get("text", "") for p in cands[0].get("content", {}).get("parts", [])]
         raise Exception(f"Gemini: no image returned ({reason}) {' '.join(texts)[:200]}")
+
+    def _run_flux3(self):
+        # Interner FLUX.3-Endpoint (pre-release): Submit -> {"id": ...},
+        # Poll ueber /get_result_debug (kein polling_url in der Submit-Antwort).
+        url = "{}/{}".format(FLUX3_BASE, self.endpoint)
+        headers = {"accept": "application/json", "x-key": self.api_key,
+                   "Content-Type": "application/json"}
+        data = json.dumps(self.payload).encode()
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as he:
+            detail = he.read().decode(errors="replace")
+            raise Exception(f"HTTP {he.code} ({self.endpoint}): {detail}")
+
+        task_id = body.get("id")
+        if not task_id:
+            raise Exception(f"FLUX.3: no task id received: {body}")
+
+        self.status.emit(self.status_wait)
+        poll_url = "{}/get_result_debug?id={}".format(FLUX3_BASE, task_id)
+        while True:
+            if self._cancel:
+                return
+            time.sleep(2)
+            if self._cancel:
+                return
+            p_req = urllib.request.Request(poll_url, headers=headers)
+            with urllib.request.urlopen(p_req, timeout=30) as p_resp:
+                res = json.loads(p_resp.read().decode())
+            st = str(res.get("status", "")).lower()
+            if st in ("ready", "success"):
+                img_url = res.get("result", {}).get("sample")
+                if not img_url:
+                    raise Exception(f"FLUX.3: no sample in result: {res}")
+                with urllib.request.urlopen(img_url, timeout=120) as i_resp:
+                    data_bytes = i_resp.read()
+                if self._cancel:
+                    return
+                self.finished.emit({"image_data": data_bytes, "crop": self.crop_info})
+                return
+            if st in ("error", "failed", "task not found") or "moderated" in st:
+                raise Exception(f"FLUX.3: {st} - "
+                                f"{res.get('details') or res.get('error') or res}")
+            self.status.emit(f"{self.status_prefix} {st} ...")
 
     def _run_bfl(self):
         try:
@@ -398,6 +462,8 @@ class AIDiffusionDocker(DockWidget):
         self.f_key.setEchoMode(QLineEdit.Password)
         self.g_key = QLineEdit()
         self.g_key.setEchoMode(QLineEdit.Password)
+        self.f3_key = QLineEdit()
+        self.f3_key.setEchoMode(QLineEdit.Password)
         self.btn_save = QPushButton()
         self.btn_save.clicked.connect(self.save_k)
 
@@ -428,6 +494,7 @@ class AIDiffusionDocker(DockWidget):
         self.lbl_lang = QLabel()
         self.lbl_apikey = QLabel()
         self.lbl_gkey = QLabel()
+        self.lbl_f3key = QLabel()
         self.lbl_aspect = QLabel()
         self.lbl_width = QLabel()
         self.lbl_height = QLabel()
@@ -436,6 +503,7 @@ class AIDiffusionDocker(DockWidget):
         opt_l.addRow(self.lbl_lang, self.lang_cb)
         opt_l.addRow(self.lbl_apikey, self.f_key)
         opt_l.addRow(self.lbl_gkey, self.g_key)
+        opt_l.addRow(self.lbl_f3key, self.f3_key)
         opt_l.addRow(self.btn_save)
         opt_l.addRow(self.lbl_aspect, self.aspect_cb)
         opt_l.addRow(self.lbl_width, self.gen_w)
@@ -478,6 +546,7 @@ class AIDiffusionDocker(DockWidget):
         self.lbl_lang.setText(self.tr("label_language"))
         self.lbl_apikey.setText(self.tr("label_apikey"))
         self.lbl_gkey.setText(self.tr("label_gkey"))
+        self.lbl_f3key.setText(self.tr("label_f3key"))
         self.btn_save.setText(self.tr("btn_save"))
         self.lbl_aspect.setText(self.tr("label_aspect"))
         self.lbl_width.setText(self.tr("label_width"))
@@ -518,12 +587,14 @@ class AIDiffusionDocker(DockWidget):
         kr = Krita.instance()
         kr.writeSetting("AIDiffusion", "fk_vPRO", self.f_key.text().strip())
         kr.writeSetting("AIDiffusion", "gkey", self.g_key.text().strip())
+        kr.writeSetting("AIDiffusion", "f3key", self.f3_key.text().strip())
         self.status_lbl.setText(self.tr("saved"))
 
     def load_k(self):
         kr = Krita.instance()
         self.f_key.setText(kr.readSetting("AIDiffusion", "fk_vPRO", ""))
         self.g_key.setText(kr.readSetting("AIDiffusion", "gkey", ""))
+        self.f3_key.setText(kr.readSetting("AIDiffusion", "f3key", ""))
 
     # --- Helpers ------------------------------------------------------------
     def _warn(self, key):
@@ -600,12 +671,16 @@ class AIDiffusionDocker(DockWidget):
 
         sel = MODELS[self.model_cb.currentIndex()]
         provider, model_id = sel["provider"], sel["id"]
+        flux3 = bool(sel.get("flux3_schema"))  # oeffentlich + intern: extra=forbid-Schema
         prompt = self.prompt_ed.toPlainText().strip()
 
         # Passenden API-Key prüfen
         if provider == "google":
             if not self.g_key.text().strip():
                 return self._warn("warn_no_gkey")
+        elif provider == "flux3":
+            if not self.f3_key.text().strip():
+                return self._warn("warn_no_f3key")
         elif not self.f_key.text().strip():
             return self._warn("warn_no_key")
 
@@ -615,6 +690,14 @@ class AIDiffusionDocker(DockWidget):
             if provider == "google":
                 imgs = [self.ref_b64] if self.ref_b64 else []
                 payload = {"prompt": prompt, "images": imgs}
+            elif flux3:
+                # extra=forbid-Schema: nur mode/prompt/reference_images/width/height/seed
+                payload = {"mode": "t2i", "prompt": prompt,
+                           "width": self._round32(self.gen_w.value()),
+                           "height": self._round32(self.gen_h.value())}
+                if self.ref_b64:
+                    payload["mode"] = "i2i"
+                    payload["reference_images"] = [self.ref_b64]
             else:
                 payload = {"prompt": prompt,
                            "width": self._round32(self.gen_w.value()),
@@ -648,6 +731,9 @@ class AIDiffusionDocker(DockWidget):
             if provider == "google":
                 imgs = [img_b64] + ([self.ref_b64] if self.ref_b64 else [])
                 payload = {"prompt": prompt, "images": imgs}
+            elif flux3:
+                refs = [img_b64] + ([self.ref_b64] if self.ref_b64 else [])
+                payload = {"mode": "i2i", "prompt": prompt, "reference_images": refs}
             else:
                 payload = {"prompt": prompt, "input_image": img_b64, "output_format": "png"}
                 if self.ref_b64:
@@ -655,7 +741,7 @@ class AIDiffusionDocker(DockWidget):
             self._begin(model_id, payload, crop_info, "status_edit", provider)
 
         elif mode == "fill":
-            if provider == "google":
+            if provider != "bfl":
                 return self._warn("warn_fill_flux_only")
             mask = self._read_mask(doc, x, y, w, h).scaled(
                 tw, th, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
@@ -696,7 +782,12 @@ class AIDiffusionDocker(DockWidget):
             status += "  ({}/{})".format(b["i"] + 1, b["total"])
         self.status_lbl.setText(status)
         provider = b["provider"]
-        api_key = self.g_key.text().strip() if provider == "google" else self.f_key.text().strip()
+        if provider == "google":
+            api_key = self.g_key.text().strip()
+        elif provider == "flux3":
+            api_key = self.f3_key.text().strip()
+        else:
+            api_key = self.f_key.text().strip()
         self.worker = APIWorker(b["endpoint"], payload, api_key, b["crop_info"],
                                 status_wait=self.tr("status_waiting"),
                                 status_prefix=self.tr("status_prefix"),
